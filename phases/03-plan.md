@@ -95,9 +95,11 @@ After A–D, `git status --porcelain docs/superpowers/` and `git log -1 --format
 
 ## Commit
 
-Stage `openspec/changes/<name>/tasks.md`. Commit message:
+Stage `openspec/changes/<name>/proposal.md`, `openspec/changes/<name>/design.md`, and `openspec/changes/<name>/tasks.md` together as a single integrated planning commit. Commit message:
 ```
-openspec(<name>): plan
+openspec(<name>): planning
 ```
+
+This is the only commit produced by Phases 2–3 combined. If `proposal.md` or `design.md` were already committed in a prior session (e.g., resuming Phase 3 after a previous run committed Phase 2 separately under the old workflow), only `tasks.md` will be staged — that is fine; the prior commit stays in history.
 
 → Continue to Phase 4.

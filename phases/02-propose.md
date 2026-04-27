@@ -86,11 +86,4 @@ Path: `openspec/changes/<name>/design.md`
 
 Structure: see `templates/design.md`. Fill in from the design content delivered in the brainstorming skill's final message (no spec file exists — the design lives in the conversation).
 
-## Commit
-
-Stage `openspec/changes/<name>/proposal.md` and `openspec/changes/<name>/design.md`. Commit message:
-```
-openspec(<name>): propose
-```
-
-→ Continue to Phase 3.
+→ Continue to Phase 3. (No commit here — Phase 3 commits proposal, design, and tasks together as one planning commit.)
