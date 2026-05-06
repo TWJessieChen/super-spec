@@ -15,9 +15,9 @@ See https://openspec.dev for details.
 
 ## 2. openspec/ initialized in current project
 
-Run: `openspec status` (no args)
+Run: `openspec list`
 
-If it errors because there's no `openspec/` directory, ask the user (use AskUserQuestion):
+If it errors (exit non-zero), ask the user (use AskUserQuestion):
 > "openspec is not initialized in this project. Initialize now?"
 Options: `yes` / `no`.
 - `yes` → run `openspec init`, continue
