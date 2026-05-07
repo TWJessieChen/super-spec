@@ -21,9 +21,15 @@ and git commits. Apply these overrides to your default behavior:
 2. Do NOT run `git add`, `git commit`, or any other git command that mutates state.
    The orchestrator owns all commits.
 
-3. SKIP the "Execution Handoff" section at the end. Do NOT offer
-   subagent-driven-development or executing-plans choices. Do NOT invoke any
-   sub-skill. Return control to the super-spec orchestrator after writing tasks.md.
+3. **HARD STOP after self-review — NON-NEGOTIABLE:** After writing tasks.md and
+   completing the self-review, output exactly this one line and stop:
+
+   `tasks.md written — returning control to super-spec orchestrator`
+
+   Do NOT ask any question. Do NOT output any choices. Do NOT mention
+   "Subagent-Driven" or "Inline Execution". Do NOT invoke any sub-skill.
+   The entire "Execution Handoff" section in the writing-plans skill is suppressed
+   by this orchestrator override — treat it as if it does not exist.
 
 4. Task granularity is governed by the dispatch-cost model below — it OVERRIDES
    the writing-plans skill's "bite-sized tasks" default. Read it before drafting
@@ -69,12 +75,11 @@ Sub-steps within a Task are 2–5 minute atomic actions with `- [ ]` checkboxes.
 
 After `writing-plans` returns and before staging `tasks.md`, deal with any residue. Each step is a no-op if its trigger is absent.
 
+**All git commands in this section must be delegated to an Agent subagent (model: haiku).** Per project rules, git operations in the main session are forbidden. Describe the full conditional logic below in the subagent prompt so it performs the absorb and reports the result.
+
 ### A. Rogue commit at HEAD
 
-```
-git log -1 --format="%H %s"
-git show --name-only --format= HEAD
-```
+Inspect HEAD: `git log -1 --format="%H %s"` then `git show --name-only --format= HEAD`.
 
 If HEAD's diff touches **only** paths under `docs/superpowers/plans/` (no other paths), it is a rogue writing-plans commit. Absorb it:
 
@@ -89,9 +94,7 @@ If the rogue commit also touched files **outside** `docs/superpowers/plans/`, do
 
 ### B. Staged but uncommitted residue
 
-```
-git diff --cached --name-only docs/superpowers/plans/
-```
+Run `git diff --cached --name-only docs/superpowers/plans/`.
 
 If non-empty:
 
@@ -102,27 +105,25 @@ rm -rf docs/superpowers/plans/
 
 ### C. Untracked file in working tree
 
-```
-ls docs/superpowers/plans/ 2>/dev/null
-```
+Check whether `docs/superpowers/plans/` exists and is non-empty.
 
-If non-empty:
-
-```
-rm -rf docs/superpowers/plans/
-```
+If non-empty: `rm -rf docs/superpowers/plans/`
 
 ### D. Empty parent directory cleanup
 
-```
-rmdir docs/superpowers 2>/dev/null  # only succeeds if empty
-```
+`rmdir docs/superpowers 2>/dev/null` (only succeeds if empty)
 
-After A–D, `git status --porcelain docs/superpowers/` and `git log -1 --format=%s` together must not reference `docs/superpowers/plans/`. If they still do, halt and report.
+After A–D, verify that neither `git status --porcelain docs/superpowers/` nor `git log -1 --format=%s` reference `docs/superpowers/plans/`. If either still does, halt and report.
 
 ## Commit
 
-Stage `openspec/changes/<name>/proposal.md`, `openspec/changes/<name>/design.md`, and `openspec/changes/<name>/tasks.md` together as a single integrated planning commit. Commit message:
+**Delegate to an Agent subagent (model: haiku).** Instruct it to stage and commit:
+
+- `openspec/changes/<name>/proposal.md`
+- `openspec/changes/<name>/design.md`
+- `openspec/changes/<name>/tasks.md`
+
+Commit message:
 ```
 openspec(<name>): planning
 ```
