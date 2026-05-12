@@ -125,9 +125,24 @@ Use the **Agent** tool. Read `prompts/task-reviewer.md` and substitute:
 
 **Forbidden:** the implementer's narrative; other Tasks' content.
 
-The reviewer returns `PASS` or `FAIL\n- <issues>`.
+The reviewer returns one of:
 
-If `FAIL`, re-dispatch the implementer (step 1) with the FAIL issues appended to the prompt under a `## Previous review failed with these issues` section. Track the failure count.
+- `PASS` — no issues at all.
+- `PASS` followed by a bullet list of `[Minor]`-tagged advisory items — Task passes; record the Minor list (see "Recording Minor advisories" below) but do NOT re-dispatch.
+- `FAIL` followed by a bullet list — at least one `[Critical]` or `[Important]` issue exists; re-dispatch (see below). The bullet list is severity-ordered: `[Critical]` first, then `[Important]`, then any `[Minor]`.
+
+### Severity-based routing
+
+- **No `[Critical]` and no `[Important]`** → Task passes. Move to step 4. If the reviewer surfaced any `[Minor]` items, record them per "Recording Minor advisories".
+- **Any `[Critical]` or `[Important]`** → re-dispatch the implementer (step 1) with the **full reviewer output** (including any `[Minor]` items so the implementer can address them opportunistically) appended under a `## Previous review failed with these issues` section. Track the failure count.
+
+The implementer is required to address every `[Critical]` and `[Important]` issue. `[Minor]` items are advisory — addressing them is encouraged but not gating.
+
+### Recording Minor advisories
+
+When a Task passes with `[Minor]` items, append them to the Task's section in `tasks.md` under a `**Reviewer advisories ([Minor]):**` sub-heading (one bullet per item, verbatim from the reviewer). This carries the items forward to Phase 5 so the final-reviewer can decide whether they accumulate into a real problem.
+
+### Failure cap
 
 After the **3rd consecutive FAIL** on the same Task, **pause** the workflow:
 - Output the latest reviewer report to the user

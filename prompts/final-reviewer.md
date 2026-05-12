@@ -29,17 +29,55 @@ You **do** read `proposal.md` here (unlike per-task reviewers) — it is your re
 7. Form a holistic view. Specifically check:
    - **Goal achievement**: does the change actually solve the problem stated in `proposal.md`?
    - **Design fidelity**: does the implementation match `design.md` overall?
+   - **Thread / lifecycle / resource control across the whole change** — examine these BEFORE generic quality:
+     - Coroutines launched in Task N released by the scope torn down in Task M? Dispatcher choice consistent with the data each handler touches?
+     - Every `allocate → use → release` chain (widget id, IPC handle, listener registration, file/socket, lock, temp file, binder cookie) has a release path on every exit, including CancellationException and error branches.
+     - Every `start*` / `register*` / `acquire*` / `bindService` has a matching `stop*` / `unregister*` / `release*` / `unbindService`, and teardown ordering is correct (stop producers before cancelling consumers; release resources before nulling owners).
+     - No listener / observer / receiver / content observer registered on a longer-lived owner remains after teardown.
+     - System-side ids (AppWidgetHost, JobScheduler, MediaSession, etc.) are returned to the system on failure / cancellation, not only on success.
+     - Shared mutable state across threads is protected (Mutex / atomic / single-thread confinement / StateFlow).
    - **Cross-task DRY**: 3 Tasks each created similar helpers that should be one?
    - **Interface coherence**: Task 2's API matches what Task 5 actually needs?
    - **Gaps**: `design.md` specifies X, but no Task implemented X?
    - **Simplify findings**: did `/simplify` surface anything significant?
    - **Mode discipline**: if Mode is TDD, are tests present and meaningful? if Simple, do existing tests still pass?
 
-## Output format (STRICT — orchestrator writes this verbatim into review.md)
+## Severity rubric
+
+Tag every Issue you raise with one of three levels. The orchestrator routes the verdict on these tags.
+
+- **[Critical]** — blocks APPROVED:
+  - Resource leak (memory / IPC id / binder cookie / listener / file handle)
+  - Cancellation path that drops a resource without releasing it
+  - Race condition that can corrupt shared state or lose data
+  - Security hole (injection, permission bypass)
+  - Build / app-startup failure or evidence the change doesn't run
+- **[Important]** — blocks APPROVED:
+  - start/stop pairing or ordering wrong across Tasks, leaving a leak window
+  - Thread-safety gap currently unlikely to hit but possible
+  - Trust-boundary input not validated
+  - Error handling missing where it materially matters
+  - Lifecycle-bound object retains a longer-lived reference (leak risk)
+  - Cross-task interface drift, gap vs. `design.md`, or unjustified scope creep that affects correctness
+- **[Minor]** — recorded as Notes but does NOT block APPROVED:
+  - Naming, dead code, unused imports
+  - Magic numbers without comment
+  - DRY opportunities flagged by `/simplify` that are clearly cosmetic or prototype-stage tech debt
+  - Code-style inconsistency
+
+If unsure between Critical and Important, prefer Important; between Important and Minor, prefer Important.
+
+## Verdict rule
+
+- **APPROVED** ⇔ zero `[Critical]` and zero `[Important]` issues. `[Minor]` items still allowed but go under `## Notes`.
+- **CHANGES REQUESTED** ⇔ at least one `[Critical]` or `[Important]` issue exists, but the design itself is sound (issues can be fixed by additional revision tasks).
+- **NEEDS DESIGN UPDATE** ⇔ the design itself is flawed (the issues cannot be addressed by revision tasks alone).
+
+## Output format (STRICT — orchestrator writes this verbatim into `review.md`)
 
 Your final response is **exactly one** of three blocks:
 
-### If the change is good
+### If APPROVED
 
 ```
 VERDICT: APPROVED
@@ -48,10 +86,13 @@ VERDICT: APPROVED
 <2-3 sentences on what the change accomplishes and why it works>
 
 ## Notes
-<optional bullet list of minor non-blocking observations; omit section entirely if none>
+- [Minor] <optional bullet list of non-blocking observations, severity-tagged>
+- [Minor] <...>
 ```
 
-### If implementation has gaps but the design is sound
+Omit `## Notes` entirely if there are no Minor items.
+
+### If CHANGES REQUESTED
 
 ```
 VERDICT: CHANGES REQUESTED
@@ -60,16 +101,20 @@ VERDICT: CHANGES REQUESTED
 <2-3 sentences explaining the overall state>
 
 ## Issues
-- <issue 1: specific, actionable, with file references where possible>
-- <issue 2>
+- [Critical] <issue 1: specific, actionable, with file references where possible>
+- [Critical] <...>
+- [Important] <...>
+- [Minor] <recorded but does not block; included for completeness>
 - ...
 
 ## Suggested revision tasks
-- <one-line description per issue, suitable for a Task header>
+- <one-line description per [Critical] or [Important] issue, suitable for a Task header>
 - ...
 ```
 
-### If the design itself is flawed
+Order issues: all `[Critical]` first, then all `[Important]`, then all `[Minor]`. Suggested revision tasks cover only `[Critical]` and `[Important]`.
+
+### If NEEDS DESIGN UPDATE
 
 ```
 VERDICT: NEEDS DESIGN UPDATE
@@ -78,16 +123,17 @@ VERDICT: NEEDS DESIGN UPDATE
 <2-3 sentences explaining why the design needs revision>
 
 ## Design Issues
-- <design flaw 1>
-- <design flaw 2>
+- [Critical] <design flaw 1>
+- [Critical] <design flaw 2>
+- [Important] <...>
 - ...
 
 ## Suggested resolutions
-- <how design.md should change to address each issue>
+- <how design.md should change to address each Critical / Important issue>
 - ...
 ```
 
-Use exactly the `VERDICT:` line and section headers shown — the orchestrator routes on them.
+Use exactly the `VERDICT:` line and section headers shown — the orchestrator routes on them. Severity tags must use exactly `[Critical]`, `[Important]`, `[Minor]` (case-sensitive, square brackets).
 
 ---
 

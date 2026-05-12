@@ -16,22 +16,30 @@ Use the **Agent** tool. Read `prompts/final-reviewer.md` and substitute:
 The prompt instructs the reviewer to invoke `/simplify` skill internally for cross-task DRY analysis.
 
 The reviewer returns one of:
-- `VERDICT: APPROVED` + summary
-- `VERDICT: CHANGES REQUESTED` + issues + suggested revision tasks
-- `VERDICT: NEEDS DESIGN UPDATE` + design issues + suggested resolutions
+- `VERDICT: APPROVED` + summary + optional `## Notes` of `[Minor]` items
+- `VERDICT: CHANGES REQUESTED` + severity-tagged issues + suggested revision tasks
+- `VERDICT: NEEDS DESIGN UPDATE` + severity-tagged design issues + suggested resolutions
+
+### Severity rule (the reviewer applies this; orchestrator should re-validate)
+
+- `APPROVED` ⇔ zero `[Critical]` and zero `[Important]` issues. `[Minor]` items belong under `## Notes`.
+- `CHANGES REQUESTED` ⇔ at least one `[Critical]` or `[Important]` issue, design itself is sound.
+- `NEEDS DESIGN UPDATE` ⇔ design itself is flawed.
+
+If the reviewer's output contradicts this rule (e.g., reports `APPROVED` while listing `[Critical]` issues, or `CHANGES REQUESTED` with only `[Minor]` items), **do not silently rewrite it**: re-dispatch the final-reviewer once with a note pointing out the inconsistency, then go with the corrected output.
 
 ## Write `review.md`
 
 Path: `openspec/changes/<name>/review.md`
 
-Structure: see `templates/review.md`. Fill in `Verdict`, `Summary` (from reviewer), `Issues` (bullet list, empty if APPROVED).
+Structure: see `templates/review.md`. Fill in `Verdict`, `Summary` (from reviewer), and the relevant body section (severity-tagged).
 
 Stage `review.md`, commit message: `openspec(<name>): final review`.
 
 ## Route by verdict
 
-- **APPROVED** → Show user the verdict. Wait for the user's explicit "archive" instruction. Do NOT auto-archive.
+- **APPROVED** → Show user the verdict (including any `## Notes` `[Minor]` items). Wait for the user's explicit "archive" instruction. Do NOT auto-archive.
 - **CHANGES REQUESTED** → Use AskUserQuestion: "Reviewer requested changes. Add revision tasks now?"
-  - `yes` → append `### Revision N - Task M:` blocks to `tasks.md` addressing each issue, commit `openspec(<name>): revision N tasks`, then loop back to Phase 4 for the new tasks only
+  - `yes` → append `### Revision N - Task M:` blocks to `tasks.md` addressing every `[Critical]` and `[Important]` issue (omit `[Minor]` from revision tasks; they're recorded but not gating), commit `openspec(<name>): revision N tasks`, then loop back to Phase 4 for the new tasks only
   - `no` → pause; user can resume later
 - **NEEDS DESIGN UPDATE** → Jump to `flows/recover.md`
