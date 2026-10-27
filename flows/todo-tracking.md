@@ -82,6 +82,8 @@ These are points where the workflow legitimately blocks on a human, not finishes
 - HARD-GATE A (design approval) — `Phase 1` item stays `in_progress`.
 - HARD-GATE B (mode selection) — `Phase 2` item stays `in_progress`.
 - A `Blocked:` return or the 3-consecutive-FAIL cap pause — the current `Phase 4 · Task N` item stays `in_progress`.
+- The Phase 5 round-3 cap question, and the dispositions questions before APPROVED is shown — `Phase 5 · Final review` stays `in_progress`.
+- Phase 6 step 0 (HEAD moved since review) — `Phase 6 · Archive` stays `in_progress`; if the user chooses to review the new commits, set it back to `pending` and `Phase 5 · Final review` to `in_progress`.
 
 **Exception — Phase 5 `APPROVED`:** mark `Phase 5 · Final review` **`completed`** and leave `Phase 6 · Archive` `pending`. The review work is genuinely finished; the workflow is only waiting for the user's explicit "archive" instruction, which the `Phase 6` pending item already conveys.
 

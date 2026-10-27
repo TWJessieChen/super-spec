@@ -1,6 +1,6 @@
 export const meta = {
   name: 'super-spec-final-review',
-  description: 'super-spec Phase 5 multi-lens panel：4 個平行 lens → skeptic 投票 → verdict 由 script deterministic 計算 → judge 只組稿；全程 read-only',
+  description: 'super-spec Phase 5 multi-lens panel（round 1 專用）：4 個平行 lens → skeptic 投票 → verdict 由 script deterministic 計算 → judge 只組稿；全程 read-only',
   phases: [
     { title: 'Lenses', detail: '4 個平行視角各自審整個 change' },
     { title: 'Verify', detail: '每個 Critical/Important 候選 2 個 skeptic 反證投票' },
@@ -16,6 +16,9 @@ export const meta = {
 //   mode        : 'TDD' | 'Simple'（純 discipline）
 //   commitRange : string — <baseline>..HEAD（推導方式同 phases/05-final-review.md）
 //   paths       : { proposal, design, tasks, specsDir }
+//   verification: string — Phase 5 開頭跑的 full 驗證指令輸出（exit 0 才會走到這裡），
+//                 或 '(no full verification command defined in design.md)'
+//   reviewDepth : 'Standard' | 'Deep'（Quick 永遠不走 panel）
 //   models      : { lens, holistic, skeptic, judge } — Agent-tool aliases
 //                 ← 唯一權威是 proposal.md 的 ## Ultracode Agent Models 表（缺
 //                   panel 列時用 flows/ultracode-review.md §3 的預設值）；本檔
@@ -32,13 +35,15 @@ export const meta = {
 // ============================================================================
 
 const { changeName, mode, commitRange, paths, models, templates } = args
+const verification = args.verification || '(no full verification command defined in design.md)'
+const reviewDepth = args.reviewDepth || 'Standard'
 
 // ---- fail-fast：模板 placeholder 契約檢查 ----
 const REQUIRED_PLACEHOLDERS = {
   lensSpec: ['{CHANGE_NAME}', '{SPECS_DIR}', '{DESIGN_PATH}', '{COMMIT_RANGE}'],
   lensLifecycle: ['{CHANGE_NAME}', '{DESIGN_PATH}', '{COMMIT_RANGE}'],
-  lensCoherence: ['{CHANGE_NAME}', '{DESIGN_PATH}', '{TASKS_PATH}', '{MODE}', '{COMMIT_RANGE}'],
-  holistic: ['{CHANGE_NAME}', '{PROPOSAL_PATH}', '{DESIGN_PATH}', '{TASKS_PATH}', '{SPECS_DIR}', '{COMMIT_RANGE}'],
+  lensCoherence: ['{CHANGE_NAME}', '{DESIGN_PATH}', '{TASKS_PATH}', '{MODE}', '{COMMIT_RANGE}', '{VERIFICATION}'],
+  holistic: ['{CHANGE_NAME}', '{PROPOSAL_PATH}', '{DESIGN_PATH}', '{TASKS_PATH}', '{SPECS_DIR}', '{COMMIT_RANGE}', '{REVIEW_ROUND}', '{PREVIOUS_REVIEW_PATH}', '{FOCUS_RANGE}', '{VERIFICATION}', '{REVIEW_DEPTH}'],
   skeptic: ['{ISSUE_SEVERITY}', '{ISSUE_FILE}', '{ISSUE_DESCRIPTION}', '{DESIGN_PATH}', '{COMMIT_RANGE}'],
   judge: ['{CHANGE_NAME}', '{VERDICT}', '{CONFIRMED_ISSUES}', '{NOTES}'],
 }
@@ -63,10 +68,11 @@ const LENS_SCHEMA = {
         type: 'object',
         required: ['severity', 'description', 'file', 'is_design_flaw'],
         properties: {
-          severity: { type: 'string', enum: ['Critical', 'Important', 'Minor'] },
+          severity: { type: 'string', enum: ['Critical', 'Important', 'Minor', 'Pre-existing'] },
           description: { type: 'string' },
           file: { type: 'string' },
           is_design_flaw: { type: 'boolean' },
+          class: { type: 'string', description: 'Critical/Important 必填：kebab-case 問題類別' },
         },
       },
     },
@@ -75,7 +81,7 @@ const LENS_SCHEMA = {
 const SKEPTIC_SCHEMA = {
   type: 'object',
   required: ['refuted', 'reasoning'],
-  properties: { refuted: { type: 'boolean' }, reasoning: { type: 'string' } },
+  properties: { refuted: { type: 'boolean' }, pre_existing: { type: 'boolean' }, reasoning: { type: 'string' } },
 }
 const JUDGE_SCHEMA = {
   type: 'object',
@@ -93,6 +99,12 @@ const commonVars = {
   SPECS_DIR: paths.specsDir,
   MODE: mode,
   COMMIT_RANGE: commitRange,
+  // panel 只跑 round 1（round ≥ 2 一律走單 reviewer 增量重審，見 phases/05-final-review.md）
+  REVIEW_ROUND: 1,
+  PREVIOUS_REVIEW_PATH: '(none)',
+  FOCUS_RANGE: commitRange,
+  VERIFICATION: verification,
+  REVIEW_DEPTH: reviewDepth,
 }
 // holistic lens 重用現行 final-reviewer.md 模板（逐字），但以附註覆寫其輸出段：
 // panel 模式下 verdict 由 script 計算，holistic 只產 issues。
@@ -102,7 +114,8 @@ const HOLISTIC_OVERRIDE = [
   'You are running as the holistic lens of a review panel. IGNORE the "Output format" /',
   '"Verdict rule" sections above: do NOT emit a VERDICT block. Instead report every issue',
   'you find through the structured output schema as {issues: [{severity, description, file,',
-  'is_design_flaw}]} — severity uses your rubric above verbatim; set is_design_flaw=true only',
+  'is_design_flaw, class}]} — severity uses your rubric above verbatim (including Pre-existing);',
+  'class is required for Critical/Important; set is_design_flaw=true only',
   'for flaws that originate in design.md and cannot be fixed by revision tasks. The verdict',
   'is computed deterministically downstream from all lenses\' issues. Everything else in your',
   'instructions (what to read, /code-review invocation, rubric) still applies. If the',
@@ -151,6 +164,7 @@ let gatingCandidates = candidates
   .filter(i => i.severity === 'Critical' || i.severity === 'Important')
   .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
 const minorsFromLenses = candidates.filter(i => i.severity === 'Minor')
+const preExistingFromLenses = candidates.filter(i => i.severity === 'Pre-existing')
 
 const MAX_SKEPTIC_CANDIDATES = 12
 if (gatingCandidates.length > MAX_SKEPTIC_CANDIDATES) {
@@ -169,9 +183,15 @@ const verified = await parallel(toVerify.map((issue, idx) => () =>
       COMMIT_RANGE: commitRange,
     }), { label: `skeptic:${idx + 1}.${v + 1}`, phase: 'Verify', model: models.skeptic, schema: SKEPTIC_SCHEMA })
   )).then(votes => {
-    const confirms = votes.filter(Boolean).filter(x => !x.refuted).length
-    // 2 票 confirm → 維持；1 票 → 降一級；0 票 → 降為 Minor
-    const finalSeverity = confirms >= 2 ? issue.severity : confirms === 1 ? DOWNGRADE[issue.severity] : 'Minor'
+    const valid = votes.filter(Boolean)
+    const confirms = valid.filter(x => !x.refuted).length
+    const preVotes = valid.filter(x => x.refuted && x.pre_existing).length
+    // 2 票 confirm → 維持；1 票 → 降一級；0 票 → 降為 Minor；
+    // 0 票且有 skeptic 判定「早於本 change」→ 改歸 Pre-existing（進 backlog，不進 Notes）
+    const finalSeverity = confirms >= 2 ? issue.severity
+      : confirms === 1 ? DOWNGRADE[issue.severity]
+      : preVotes >= 1 ? 'Pre-existing'
+      : 'Minor'
     return Object.assign({}, issue, {
       originalSeverity: issue.severity,
       severity: finalSeverity,
@@ -189,6 +209,10 @@ const confirmed = settled
   .filter(i => i.severity === 'Critical' || i.severity === 'Important')
   .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
 // Notes = lens 原生 Minor + 被投票降級者（降級者標註原 severity 供人工複核）
+const preExisting = preExistingFromLenses
+  .map(i => `[Pre-existing] ${i.file} — ${i.description}`)
+  .concat(settled.filter(i => i.severity === 'Pre-existing').map(i =>
+    `[Pre-existing] ${i.file} — ${i.description}（原標 [${i.originalSeverity}]，skeptic 判定早於本 change）`))
 const notes = minorsFromLenses
   .map(i => ({ text: `[Minor] ${i.file} — ${i.description}`, downgraded: false }))
   .concat(settled.filter(i => i.severity === 'Minor').map(i =>
@@ -205,7 +229,7 @@ const verdict = confirmed.some(i => i.is_design_flaw)
 log(`verdict = ${verdict}（confirmed gating: ${confirmed.length}，notes: ${notes.length}）`)
 
 const confirmedText = confirmed.length
-  ? confirmed.map(i => `- [${i.severity}] ${i.file} — ${i.description}${i.is_design_flaw ? '（design-level flaw）' : ''}`).join('\n')
+  ? confirmed.map(i => `- [${i.severity}] ${i.file} — ${i.description}${i.is_design_flaw ? '（design-level flaw）' : ''} {class: ${i.class || 'unclassified'}}`).join('\n')
   : '(none)'
 const notesText = notes.length ? notes.map(n => `- ${n.text}`).join('\n') : '(none)'
 
@@ -220,8 +244,17 @@ if (!judge) return { error: 'judge agent 中止 — 重跑整個 workflow（read
 return {
   verdict,
   summary: judge.summary,
-  issues: confirmed.map(i => ({ severity: i.severity, file: i.file, description: i.description, is_design_flaw: i.is_design_flaw, lens: i.lens, confirms: i.confirms })),
+  issues: confirmed.map(i => ({ severity: i.severity, file: i.file, description: i.description, class: i.class || 'unclassified', is_design_flaw: i.is_design_flaw, lens: i.lens, confirms: i.confirms })),
   notes: notes.map(n => n.text),
+  downgradedNotes: notes.filter(n => n.downgraded).map(n => n.text),
+  preExisting,
   suggestions: judge.suggestions,
-  panelStats: { lensesReturned: lenses.length, candidates: candidates.length, verifiedCount: toVerify.length, unverifiedKept: unverified.length },
+  panelStats: {
+    lensesReturned: lenses.length,
+    candidates: candidates.length,
+    verifiedCount: toVerify.length,
+    unverifiedKept: unverified.length,
+    downgraded: settled.filter(i => i.downgraded).length,
+    preExisting: preExisting.length,
+  },
 }

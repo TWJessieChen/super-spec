@@ -76,6 +76,8 @@ A Task = **one implementer dispatch + one reviewer dispatch + one commit**. Each
 
 **Verification placement:** full `assembleRelease` / test-suite runs go in the Task's **final sub-step only** (remote builds take minutes; intermediate states often can't compile). Per-sub-step verifications stay only for cheap local checks (`Select-String`, file count, single targeted unit test).
 
+**Machine gates already exist.** After every Task the orchestrator itself runs `design.md`'s **Per-task** verification command, and before the final review it runs the **Full** command (see `phases/04-apply.md` step 1b and `phases/05-final-review.md` section 2). Do not add a separate "final verify" Task just to run the Full command; a Task's own sub-steps still run whatever it needs to prove its own work (e.g. the TDD red/green runs).
+
 **Merge example:**
 - Over-fragmented: `add dependency` / `copy resources` / `add strings+dimens` / `add theme` / `register in manifest` / `add base class` / `port file A` / `port file B` / `port layout A` / `port layout B` / `wire entry point` / `add smoke test` / `final verify`
 - Consolidated: setup Task (deps + resources + theme + manifest) → shared-infra Task (only if non-trivial) → feature Task (all interdependent code + layouts + entry point) → verify Task (smoke test + final build).

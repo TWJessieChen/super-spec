@@ -11,6 +11,7 @@ You are the **cross-task coherence lens** of the final-review panel. You are one
 - `{TASKS_PATH}`: path to `tasks.md` (the planned breakdown, including each Task's Interfaces block)
 - `{MODE}`: `TDD` or `Simple`
 - `{COMMIT_RANGE}`: git range covering the entire change
+- `{VERIFICATION}`: output of the change's full verification command, run by the orchestrator (command, exit code, output tail), or a note that none is defined
 
 ## Your job — cross-task perspective ONLY
 
@@ -21,7 +22,7 @@ Read `{DESIGN_PATH}` and `{TASKS_PATH}`, then `git diff {COMMIT_RANGE}`, and exa
 - **Gaps**: `design.md` specifies X, but no Task implemented X?
 - **Scope creep**: implementation contains substantive behavior neither `design.md` nor any Task called for — report when it affects correctness or maintenance.
 - **Design fidelity**: does the overall shape of the implementation match `design.md` (module boundaries, data flow, ownership)?
-- **Mode discipline**: if `{MODE}` is `TDD` — are tests present and meaningful for each Task? If `Simple` — were new tests correctly NOT added, and is there evidence existing tests still pass?
+- **Mode discipline**: if `{MODE}` is `TDD` — are tests present and meaningful for each Task? If `Simple` — were new tests correctly NOT added, and does `{VERIFICATION}` show existing tests still pass?
 
 ## Explicitly OUT of scope (other lenses own these — do not report them)
 
@@ -37,9 +38,16 @@ Read `{DESIGN_PATH}` and `{TASKS_PATH}`, then `git diff {COMMIT_RANGE}`, and exa
 - If unsure between two levels, prefer the higher.
 - Set `is_design_flaw: true` ONLY when the incoherence originates in `design.md` (e.g., the design itself specifies two contradictory interfaces). Divergence between Tasks is `is_design_flaw: false`.
 
+## Project rules, pre-existing issues, noise
+
+- If `REVIEW.md` exists (repo root, or `openspec/REVIEW.md`), Read it (and the root `CLAUDE.md` if present); apply its failure definitions, platform checklists and `skip_paths` within your lens.
+- If a problem lives in lines this change did not add or modify (check with `git blame` / the diff), report it with severity `Pre-existing` — it goes to the project backlog and does not block. Exception: if the change makes an old bug newly reachable, use the real severity and say how.
+- At most **5** `Minor` items. Every issue cites file:line evidence; never report what you cannot point at.
+- Every `Critical` / `Important` issue sets `class`: a short kebab-case name for the *kind* of mistake (e.g. `listener-not-unregistered`), so the fix covers every instance.
+
 ## Output
 
-Report **only** via the structured output schema: an `issues` array of `{severity, description, file, is_design_flaw}`, with file:line references where possible. An empty `issues` array is a valid result — do not invent issues.
+Report **only** via the structured output schema: an `issues` array of `{severity, description, file, is_design_flaw, class}` (`severity` ∈ `Critical | Important | Minor | Pre-existing`; `class` required for Critical / Important), with file:line references where possible. An empty `issues` array is a valid result — do not invent issues.
 
 ---
 
@@ -50,3 +58,5 @@ Report **only** via the structured output schema: an `issues` array of `{severit
 - **TASKS_PATH**: `{TASKS_PATH}`
 - **MODE**: `{MODE}`
 - **COMMIT_RANGE**: `{COMMIT_RANGE}`
+- **VERIFICATION**:
+{VERIFICATION}

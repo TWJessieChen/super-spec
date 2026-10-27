@@ -10,6 +10,9 @@
 <one-line note: e.g., "TDD (Sonnet): every Task starts with a failing test, implementer runs on Sonnet." / "TDD (Opus): every Task starts with a failing test, implementer runs on Opus." / "Simple: no new tests; existing tests must still pass.">
 <!-- The parenthetical picks the implementer model; the TDD/Simple part is the discipline passed to the implementer prompt. -->
 
+## Review Depth: <auto | Quick | Standard | Deep>
+<one-line note: "auto: decided at Phase 5 from the paths the change touches (REVIEW.md sensitive_paths → Deep; docs-only → Quick; else Standard)." / "<Quick|Standard|Deep>: set explicitly by the user.">
+
 ## Engine: <native | ultracode>
 <one-line note: "native: orchestrator per-Task Agent dispatch (the default)." / "ultracode: Phase 4 Task loop runs as a Workflow script (workflows/apply.js); agent models below.">
 
@@ -24,8 +27,8 @@
 | implementer | <sonnet \| opus \| inherit> | Mode line parenthetical (Simple → inherit) |
 | implementer — 3rd dispatch after 2 consecutive FAILs | opus | fixed escalation rule (04-apply.md) |
 | task-reviewer | sonnet | fixed |
-| git-ops (checkbox fold-in / amend) | haiku | fixed |
-| final-lens ×3 (Phase-5 panel, above threshold only) | sonnet | fixed |
-| final-reviewer — holistic lens (panel) / sole reviewer (below threshold) | opus | fixed |
-| final-skeptic ×2 per gating issue (panel) | sonnet | fixed |
+| git-ops (checkbox fold-in / amend) + verification command runner | haiku | fixed |
+| final-lens ×3 (Phase-5 panel: Deep, or Standard above threshold; round 1 only) | sonnet | fixed |
+| final-reviewer — holistic lens (panel) / sole reviewer (otherwise; sonnet when depth is Quick) | opus | fixed |
+| final-skeptic ×2 per gating issue (panel, or native-verify when Deep) | sonnet | fixed |
 | final-judge (panel, compose-only) | sonnet | fixed |

@@ -25,8 +25,8 @@ Immediately after the mode answer, settle the **execution engine** (orthogonal t
 - `implementer`: from the Mode parenthetical — `TDD (Sonnet)` → `sonnet`, `TDD (Opus)` → `opus`, `Simple` → `inherit`
 - `implementer (3rd dispatch after 2 consecutive FAILs)`: `opus` (fixed escalation rule)
 - `task-reviewer`: `sonnet` (fixed)
-- `git-ops (checkbox fold-in / amend)`: `haiku` (fixed)
-- Phase-5 panel roles (used only when the panel threshold in `flows/ultracode-review.md` is met): `final-lens ×3` = `sonnet`, `final-reviewer (holistic lens / sole reviewer)` = `opus`, `final-skeptic` = `sonnet`, `final-judge` = `sonnet` (all fixed)
+- `git-ops (checkbox fold-in / amend) + verification command runner`: `haiku` (fixed)
+- Phase-5 panel roles (used in round 1 when depth is Deep, or Standard above the size threshold in `flows/ultracode-review.md`): `final-lens ×3` = `sonnet`, `final-reviewer (holistic lens / sole reviewer)` = `opus`, `final-skeptic` = `sonnet`, `final-judge` = `sonnet` (all fixed)
 
 **Ask** (use AskUserQuestion; put the default first):
 > "Choose execution engine for Phase 4:
@@ -74,11 +74,20 @@ Path: `openspec/changes/<name>/proposal.md`
 
 Structure: see `templates/proposal.md`. Fill in `## What` and `## Why` from the brainstorming conversation; set `## Mode` to the choice from HARD-GATE B; set `## Engine` to the choice from HARD-GATE B2. When Engine is `ultracode`, also write the `## Ultracode Agent Models` table (as confirmed/overridden at the gate); when `native`, omit that table entirely.
 
+Set `## Review Depth` to `auto` unless the user explicitly asked for a depth during brainstorming ("review this deeply", "just a quick check") — then write `Deep` / `Standard` / `Quick`. `auto` is resolved at Phase 5 from the paths the change actually touches; see `phases/05-final-review.md` section 3. Do not add a gate for this.
+
 ## Write `design.md`
 
 Path: `openspec/changes/<name>/design.md`
 
 Structure: see `templates/design.md`. Fill in from the design content delivered in the brainstorming skill's final message (no spec file exists — the design lives in the conversation).
+
+**`## Verification` is required.** These are the commands the orchestrator runs itself as machine gates — after every implementer commit (Per-task) and before the final review (Full) — so reviewers get evidence instead of a claim that it works. Fill it in this order:
+1. Commands named in the design or the brainstorming conversation.
+2. Commands documented in the repo: `CLAUDE.md`, `REVIEW.md`, `README`, CI workflow files, `package.json` scripts, `Makefile`, Gradle tasks (`./gradlew testDebugUnitTest`, `./gradlew assembleRelease`), etc.
+3. If neither gives a usable command, ask the user once (AskUserQuestion, free text allowed): "Which command should verify each Task, and which verifies the whole change? (`none` is fine)".
+
+Per-task should be fast (seconds to a couple of minutes: targeted tests, lint, compiling the touched module); Full may be slow (full build + full test suite). `(none)` is a valid answer for either — the workflow then skips that gate and the archive commit says so.
 
 ## Write spec deltas
 

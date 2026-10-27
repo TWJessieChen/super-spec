@@ -1,42 +1,45 @@
 export const meta = {
   name: 'super-spec-apply',
-  description: 'super-spec Phase 4 Task loop：逐 Task 派發 implementer → task-reviewer，嚴重度路由 + 連續 FAIL 模型升級；git 與 tasks.md 為唯一真相源',
+  description: 'super-spec Phase 4 Task loop：逐 Task 派發 implementer → 驗證指令 → task-reviewer（增量重審），嚴重度路由 + 連續 FAIL 模型升級；git 與 tasks.md 為唯一真相源',
   phases: [{ title: 'Apply' }],
 }
 
 // ============================================================================
 // args 契約 — 由 flows/ultracode-apply.md 的 orchestrator 步驟組裝後傳入。
 // 本 script 為靜態檔：所有模板、模型、Task 內容一律經 args 進來，script 內
-// 不 hardcode 任何 prompt 內文或模型名（唯一例外：git-ops prompt 的固定守則，
-// 鏡像 phases/04-apply.md step 4 的原文規則）。
+// 不 hardcode 任何 prompt 內文或模型名（例外：git-ops / verify prompt 的固定守則，
+// 鏡像 phases/04-apply.md step 1b 與 step 4 的原文規則）。
 //
-//   changeName : string — change 名稱（組 tasks.md 路徑用）
-//   designPath : string — openspec/changes/<name>/design.md
-//   mode       : 'TDD' | 'Simple' — 純 discipline，不含模型括號
-//   models     : {
+//   changeName   : string — change 名稱（組 tasks.md 路徑用）
+//   designPath   : string — openspec/changes/<name>/design.md
+//   mode         : 'TDD' | 'Simple' — 純 discipline，不含模型括號
+//   models       : {
 //     implementer          : 'sonnet' | 'opus' | 'inherit',
 //     implementerEscalated : 'opus',      // 2 連 FAIL 後第 3 次 dispatch
 //     taskReviewer         : 'sonnet',
-//     gitOps               : 'haiku',
+//     gitOps               : 'haiku',     // 也負責跑驗證指令
 //   }   ← 來源是 proposal.md 的 ## Ultracode Agent Models 表，非本檔
-//   templates  : {
+//   verification : { perTask: string | null }
+//                  — design.md ## Verification 的 Per-task 指令；null = 未定義，跳過
+//   templates    : {
 //     isolationPreamble : prompts/_isolation-preamble.md 全文（逐字）,
 //     implementer       : prompts/implementer.md 全文（逐字，含 {PLACEHOLDER}）,
 //     taskReviewer      : prompts/task-reviewer.md 全文（逐字，含 {PLACEHOLDER}）,
 //   }
-//   tasks      : [{ number, title, body, relevantFiles }]
-//                — tasks.md 中 Task 標頭仍為 "- [ ]" 的每個 Task；body 是該
-//                  Task 區段逐字全文，relevantFiles 取自其 **Files:** 清單
-//   decisions  : [{ taskNumber, action: 'skip' | 'note', note? }]
-//                — resume 時使用者裁決的物化副本（首次啟動為 []）
+//   tasks        : [{ number, title, body, relevantFiles }]
+//                  — tasks.md 中 Task 標頭仍為 "- [ ]" 的每個 Task；body 是該
+//                    Task 區段逐字全文，relevantFiles 取自其 **Files:** 清單
+//   decisions    : [{ taskNumber, action: 'skip' | 'note', note? }]
+//                  — resume 時使用者裁決的物化副本（首次啟動為 []）
 // ============================================================================
 
 const { changeName, designPath, mode, models, templates, tasks, decisions = [] } = args
+const verifyCmd = (args.verification && args.verification.perTask) || null
 
 // ---- fail-fast：模板 placeholder 契約檢查（跨檔隱式耦合的守門）----
 const REQUIRED_PLACEHOLDERS = {
   implementer: ['{TASK_NUMBER}', '{TASK_BODY}', '{DESIGN_PATH}', '{MODE}', '{RELEVANT_FILES}'],
-  taskReviewer: ['{COMMIT_HASH}', '{DESIGN_PATH}', '{TASK_BODY}', '{MODE}'],
+  taskReviewer: ['{COMMIT_HASH}', '{DESIGN_PATH}', '{TASK_BODY}', '{MODE}', '{REVIEW_ROUND}', '{PREVIOUS_COMMIT}', '{PREVIOUS_ISSUES}', '{VERIFICATION}'],
 }
 for (const [name, placeholders] of Object.entries(REQUIRED_PLACEHOLDERS)) {
   if (!templates || !templates[name]) return { error: `args.templates.${name} 缺失 — orchestrator 未依 flows/ultracode-apply.md 組裝 args` }
@@ -55,12 +58,15 @@ const preamble = templates.isolationPreamble + '\n\n---\n\n'
 const skipSet = new Set(decisions.filter(d => d.action === 'skip').map(d => d.taskNumber))
 const noteFor = n => (decisions.find(d => d.action === 'note' && d.taskNumber === n) || {}).note
 
-const SEVERITY_ORDER = { Critical: 0, Important: 1, Minor: 2 }
-const fmtReport = review => review.issues
+const SEVERITY_ORDER = { Critical: 0, Important: 1, Minor: 2, 'Pre-existing': 3 }
+const isGating = i => i.severity === 'Critical' || i.severity === 'Important'
+const fmtIssue = i => `- [${i.severity}] ${i.text}${isGating(i) ? ` {class: ${i.class || 'unclassified'}}` : ''}`
+const fmtIssues = issues => issues
   .slice()
   .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
-  .map(i => `- [${i.severity}] ${i.text}`)
+  .map(fmtIssue)
   .join('\n')
+const fence = s => '```\n' + String(s || '').trimEnd() + '\n```'
 
 function paused(kind, taskNumber, extra, completed, lastCommit) {
   // orchestrator 依 flows/ultracode-apply.md 的路由表處理；resume 前必須
@@ -68,22 +74,35 @@ function paused(kind, taskNumber, extra, completed, lastCommit) {
   return Object.assign({ paused: kind, taskNumber, completed, lastCommit }, extra)
 }
 
-// git-ops prompt：workflow 模式下 phases/04-apply.md step 3（翻 checkbox）+
+// verify prompt：phases/04-apply.md step 1b 的等價物。只跑指令、不改檔。
+function verifyPrompt(cmd) {
+  return [
+    '你是被主 session 委派的子代理，可以直接用 Bash 執行命令，不需要再往下委派。',
+    `任務：在 repo 根目錄逐字執行以下驗證指令（build 可能要數分鐘，給足 timeout）：`,
+    fence(cmd),
+    '規則：不得修改任何檔案、不得執行其他指令來「修好」它。',
+    '回報 exit_code（整數；指令根本無法執行時回報 -1）與 tail（合併 stdout/stderr 的最後 40 行，逐字）。',
+  ].join('\n')
+}
+
+// git-ops prompt：workflow 模式下 phases/04-apply.md step 3（翻 checkbox + Recording）+
 // step 4（fold 進實作 commit）的等價物。固定守則逐字鏡像 04-apply.md step 4。
-function gitOpsPrompt(name, n, title, minors) {
-  const advisories = minors.length
-    ? `1b. 在該 Task 區段下新增（或補進既有的）「**Reviewer advisories ([Minor]):**」小節，逐字加入以下 bullet：\n${minors.map(i => `- ${i.text}`).join('\n')}`
-    : ''
+function gitOpsPrompt(name, n, title, rec) {
+  const lines = [`**Review rounds:** ${rec.reviewRounds} · **Verification failures:** ${rec.verifyFailures}`]
+  if (rec.fixedClasses.length) lines.push(`**Fixed during review:** ${rec.fixedClasses.join(', ')}`)
+  if (rec.minors.length) lines.push('**Reviewer advisories ([Minor]):**', ...rec.minors.map(i => `- [Minor] ${i.text}`))
+  if (rec.preExisting.length) lines.push('**Pre-existing ([Pre-existing]):**', ...rec.preExisting.map(i => `- [Pre-existing] ${i.text}`))
   return [
     '你是被主 session 委派的子代理，可以直接用 Bash 執行 git 命令，不需要再往下委派。',
     `任務：super-spec change「${name}」的 Task ${n}（${title}）已通過審查。把 tasks.md 的進度折入 HEAD 的實作 commit：`,
     `1. 編輯 openspec/changes/${name}/tasks.md：把 Task ${n} 區段的每個 sub-step checkbox 與 Task 標頭本身由 "- [ ]" 翻成 "- [x]"（已是 [x] 的不動）。`,
-    advisories,
+    `1b. 在 Task ${n} 區段末尾逐字加入以下區塊（若同名小節已存在，補進既有小節而非重複建立）：`,
+    fence(lines.join('\n')),
     `2. 若 git status --porcelain openspec/changes/${name}/tasks.md 為空 → 回報 ok=true 並結束（無事可做）。`,
     `3. 否則執行：git add openspec/changes/${name}/tasks.md && git commit --amend --no-edit`,
     '規則：git add 只准列出上述具體檔案，禁 git add -A / git add .；禁用 --no-verify 等任何 hook bypass 旗標；任何 git 失敗時把 stderr 逐字放進 error 欄回報並停止，禁止自行 git restore / reset --hard / checkout -- / clean。',
     '完成後回報 ok=true 與 amend 後的 commit hash（git rev-parse HEAD 的輸出）。',
-  ].filter(Boolean).join('\n')
+  ].join('\n')
 }
 
 // ---- schemas：結構化輸出取代 04-apply.md 的字串契約解析 ----
@@ -107,11 +126,20 @@ const REVIEW_SCHEMA = {
         type: 'object',
         required: ['severity', 'text'],
         properties: {
-          severity: { type: 'string', enum: ['Critical', 'Important', 'Minor'] },
-          text: { type: 'string' },
+          severity: { type: 'string', enum: ['Critical', 'Important', 'Minor', 'Pre-existing'] },
+          text: { type: 'string', description: '<file:line — issue>' },
+          class: { type: 'string', description: 'Critical/Important 必填：kebab-case 的問題類別' },
         },
       },
     },
+  },
+}
+const VERIFY_SCHEMA = {
+  type: 'object',
+  required: ['exit_code', 'tail'],
+  properties: {
+    exit_code: { type: 'integer' },
+    tail: { type: 'string', description: '合併輸出的最後 40 行，逐字' },
   },
 }
 const GIT_SCHEMA = {
@@ -137,8 +165,13 @@ for (const task of tasks) {
   }
 
   let failCount = 0
-  let prevReport = null
-  let prevCommit = null
+  let reviewRound = 0
+  let verifyFailures = 0
+  let blockingReport = null      // 回灌 implementer 的內容：只含 gating 項或驗證失敗
+  let prevCommit = null          // implementer amend 的對象（= 上一次 implementer 的產出）
+  let lastReviewedCommit = null  // 上一輪 reviewer 看過的 commit（增量重審基準）
+  let lastGatingIssues = null    // 上一輪 reviewer 的 gating 清單（closure check 用）
+  const fixedClasses = new Set()
 
   while (true) {
     const attempt = failCount + 1
@@ -154,7 +187,7 @@ for (const task of tasks) {
     })
     const note = noteFor(n)
     if (note) implPrompt += `\n\n## User guidance (injected after a workflow pause)\n${note}`
-    if (prevReport) implPrompt += `\n\n## Previous review failed with these issues\n${prevReport}\n\nPrevious commit: ${prevCommit}\n(That commit sits at HEAD — fix by amending it, per your role instructions.)`
+    if (blockingReport) implPrompt += `\n\n## Previous review failed with these issues\n${blockingReport}\n\nPrevious commit: ${prevCommit}\n(That commit sits at HEAD — fix by amending it, per your role instructions.)`
 
     const implOpts = { label: `implement:task${n}#${attempt}`, phase: ph, schema: IMPL_SCHEMA }
     if (implModel !== 'inherit') implOpts.model = implModel
@@ -166,46 +199,90 @@ for (const task of tasks) {
     if (!impl.commit_hash) return paused('agent_error', n, { detail: 'implementer 回報 done 但缺 commit_hash' }, results, prevCommit)
     const commit = impl.commit_hash
 
-    // Isolation Rule 3：reviewer prompt 只由模板 + hash + Task body 組成，
-    // implementer 的任何敘事欄位（reason 等）在結構上進不來。
+    // ---- step 1b：驗證指令（機器 gate，先於 reviewer）----
+    let verificationText = '(no per-task verification command defined in design.md)'
+    if (verifyCmd) {
+      const v = await agent(verifyPrompt(verifyCmd), {
+        label: `verify:task${n}#${attempt}`,
+        phase: ph,
+        model: models.gitOps,
+        schema: VERIFY_SCHEMA,
+      })
+      if (!v) return paused('agent_error', n, { detail: 'verify agent 中止' }, results, commit)
+      if (v.exit_code !== 0) {
+        failCount += 1
+        verifyFailures += 1
+        fixedClasses.add('verification-failure')
+        log(`Task ${n} 驗證失敗 #${verifyFailures}（exit ${v.exit_code}），不派 reviewer；連續 FAIL ${failCount}`)
+        blockingReport = `- [Critical] verification command failed: \`${verifyCmd}\` exited ${v.exit_code} — output tail below {class: verification-failure}\n${fence(v.tail)}`
+        prevCommit = commit
+        if (failCount >= 3) return paused('fail_cap', n, { reviewerReport: blockingReport }, results, commit)
+        continue
+      }
+      verificationText = `\`${verifyCmd}\` → exit 0\n${fence(v.tail)}`
+    }
+
+    // ---- step 2：task-reviewer（round ≥ 2 為增量重審）----
+    // Isolation Rule 3：reviewer prompt 只由模板 + hash + Task body + 上一輪 gating 清單 +
+    // 機器驗證輸出組成，implementer 的任何敘事欄位（reason 等）在結構上進不來。
+    reviewRound += 1
     const reviewPrompt = preamble + fill(templates.taskReviewer, {
       COMMIT_HASH: commit,
       DESIGN_PATH: designPath,
       TASK_BODY: task.body,
       MODE: mode,
+      REVIEW_ROUND: reviewRound,
+      PREVIOUS_COMMIT: lastReviewedCommit || '(none)',
+      PREVIOUS_ISSUES: lastGatingIssues || '(none)',
+      VERIFICATION: verificationText,
     })
     const review = await agent(reviewPrompt, {
-      label: `review:task${n}#${attempt}`,
+      label: `review:task${n}#r${reviewRound}`,
       phase: ph,
       model: models.taskReviewer,
       schema: REVIEW_SCHEMA,
     })
     if (!review) return paused('agent_error', n, { detail: 'task-reviewer agent 中止' }, results, commit)
+    lastReviewedCommit = commit
 
     // 路由唯一依據 = severity 清單（04-apply.md「Severity-based routing」）。
     // schema 已排除格式錯誤；verdict 與清單矛盾時以清單為準 —— 04-apply.md 的
     // 「Malformed reviewer output」補救分支在本路徑因此不存在。
-    const gating = review.issues.filter(i => i.severity === 'Critical' || i.severity === 'Important')
-    const minors = review.issues.filter(i => i.severity === 'Minor')
+    const gating = review.issues.filter(isGating)
+    const minors = review.issues.filter(i => i.severity === 'Minor').slice(0, 5)
+    const preExisting = review.issues.filter(i => i.severity === 'Pre-existing')
 
     if (gating.length === 0) {
-      const git = await agent(gitOpsPrompt(changeName, n, task.title, minors), {
+      const rec = { reviewRounds: reviewRound, verifyFailures, fixedClasses: [...fixedClasses], minors, preExisting }
+      const git = await agent(gitOpsPrompt(changeName, n, task.title, rec), {
         label: `git-ops:task${n}`,
         phase: ph,
         model: models.gitOps,
         schema: GIT_SCHEMA,
       })
       if (!git || !git.ok) return paused('git_error', n, { stderr: (git && git.error) || 'git-ops agent 中止' }, results, commit)
-      results.push({ task: n, commit: git.commit_hash || commit, attempts: attempt, minors: minors.map(i => i.text) })
-      log(`Task ${n} PASS（attempt ${attempt}${minors.length ? `，${minors.length} 個 [Minor] 已記錄進 tasks.md` : ''}）`)
+      results.push({
+        task: n,
+        commit: git.commit_hash || commit,
+        attempts: attempt,
+        reviewRounds: reviewRound,
+        verifyFailures,
+        fixedClasses: [...fixedClasses],
+        minors: minors.map(i => i.text),
+        preExisting: preExisting.map(i => i.text),
+      })
+      log(`Task ${n} PASS（review round ${reviewRound}${minors.length ? `，${minors.length} 個 [Minor]` : ''}${preExisting.length ? `，${preExisting.length} 個 [Pre-existing]` : ''} 已記錄進 tasks.md）`)
       break
     }
 
     failCount += 1
+    gating.forEach(i => fixedClasses.add(i.class || 'unclassified'))
     log(`Task ${n} FAIL #${failCount}（${gating.length} 個 [Critical]/[Important]）`)
-    if (failCount >= 3) return paused('fail_cap', n, { reviewerReport: fmtReport(review) }, results, commit)
-    prevReport = fmtReport(review)
+    // 只有 gating 項回灌 implementer（P0-3）；完整報告只在 fail_cap 時給使用者
+    blockingReport = fmtIssues(gating)
+    lastGatingIssues = blockingReport
     prevCommit = commit
+    if (failCount >= 3) return paused('fail_cap', n, { reviewerReport: fmtIssues(review.issues) }, results, commit)
   }
 }
 

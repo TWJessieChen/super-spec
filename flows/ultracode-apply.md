@@ -22,13 +22,14 @@
 | `designPath` | `openspec/changes/<name>/design.md` | — |
 | `mode` | `proposal.md` `## Mode` 行 | 只留 discipline：`TDD (Sonnet)` / `TDD (Opus)` → `TDD`；`Simple` → `Simple` |
 | `models` | `proposal.md` `## Ultracode Agent Models` 表 | 逐列對映 `{implementer, implementerEscalated, taskReviewer, gitOps}`；Simple mode 的 implementer 記 `inherit` |
+| `verification` | `design.md` `## Verification` 的 **Per-task** 行 | `{perTask: "<指令逐字>"}`；section 不存在或為 `(none)` → `{perTask: null}`（script 跳過驗證步驟） |
 | `templates.isolationPreamble` | Read `prompts/_isolation-preamble.md` | **逐字全文**，不改寫不摘要 |
 | `templates.implementer` | Read `prompts/implementer.md` | 逐字全文，`{PLACEHOLDER}` 原樣保留——變數替換由 script 內 split/join 執行，不在此處 |
 | `templates.taskReviewer` | Read `prompts/task-reviewer.md` | 同上 |
 | `tasks` | 解析 `tasks.md` | Task 標頭仍為 `- [ ]` 的每個 Task → `{number, title, body, relevantFiles}`；`body` 是該 Task 區段逐字全文（標頭 + Interfaces + sub-steps + Files），`relevantFiles` 取自 `**Files:**`。Phase 5 `CHANGES REQUESTED` 後追加的 `### Revision N - Task M:` 區塊同樣以 `- [ ]` 標頭出現——視為一般 Task 解析（number 用其在檔中的識別，如 `R1-T2`） |
 | `decisions` | 首次啟動 = `[]` | resume 時見第 5 節 |
 
-**args 禁入清單（Isolation Rule 5 的 workflow 對應）**：brainstorming 對話、`proposal.md` 其餘內容（What/Why）、其他 Task 的 reviewer 報告、任何 implementer 敘事。模板 + Task 陣列 + 路徑 + 模型表，僅此而已。
+**args 禁入清單（Isolation Rule 5 的 workflow 對應）**：brainstorming 對話、`proposal.md` 其餘內容（What/Why）、其他 Task 的 reviewer 報告、任何 implementer 敘事。模板 + Task 陣列 + 路徑 + 模型表 + 驗證指令，僅此而已。（同一 Task 上一輪的 gating 清單由 script 在 run 內自行傳遞，不經 args。）
 
 ## 3. 啟動
 
@@ -42,7 +43,7 @@
 |---|---|
 | `{completed: true, results}` | 用 `git log` 與 `tasks.md` 覆核每個 Task 都有實作 commit 且 checkbox 全 `- [x]`（真相源覆核，不只信 results）。同步 todo → 全部 `completed`。→ Phase 5。 |
 | `{paused: 'blocked', taskNumber, reason}` | 等同 04-apply.md 的 Blocked routing：把 reason 逐字呈現，AskUserQuestion 問使用者如何進行（調整 design / 改寫 Task body / skip / 手動介入）。 |
-| `{paused: 'fail_cap', taskNumber, reviewerReport}` | 等同 04-apply.md 的 Failure cap：把 reviewerReport 逐字輸出，問使用者如何進行。 |
+| `{paused: 'fail_cap', taskNumber, reviewerReport}` | 等同 04-apply.md 的 Failure cap：把 reviewerReport（可能是 reviewer 完整報告，或驗證指令失敗輸出）逐字輸出，用同樣四個選項問使用者（回到設計 / 改寫 Task body / skip / 手動介入）。選「回到設計」→ 結束本 workflow，Read `flows/recover.md`。 |
 | `{paused: 'git_error', stderr}` / `{paused: 'agent_error', detail}` | 逐字呈現，暫停等使用者指示。禁止自行以 git 破壞性命令「修復」。 |
 | `{error: ...}` | script 的 fail-fast 契約檢查失敗（模板/placeholder/args 缺失）。修正 args 組裝後重新啟動全新 run，不 resume。 |
 
@@ -69,13 +70,14 @@
 |---|---|
 | 1. Agent tool 隔離 | Workflow 的每個 `agent()` 就是 fresh-context 子代理 |
 | 2. prompt 逐字來自 `prompts/*.md` | orchestrator 在**啟動時**逐字 Read 模板經 args 傳入；script 只做 `{PLACEHOLDER}` split/join 替換，不改寫模板文字 |
-| 3. reviewer 只看 git 不看敘事 | script 內 reviewer prompt 僅由模板 + commit hash + Task body 組成；implementer 回傳是 schema 物件，敘事欄位在結構上進不了 reviewer prompt |
+| 3. reviewer 只看 git 不看敘事 | script 內 reviewer prompt 僅由模板 + commit hash + Task body + 同一 Task 上一輪的 gating 清單（round ≥ 2）+ 機器驗證輸出組成；implementer 回傳是 schema 物件，敘事欄位在結構上進不了 reviewer prompt |
 | 4. per-Task fresh subagent | 每次 `agent()` 呼叫都是新代理，迴圈內不重用 |
 | 5. strip orchestrator context | 第 2 節的 args 白名單 |
-| 6. final-reviewer fresh | Phase 5 不在本 flow 範圍（v1 維持 native），規則原樣適用 |
+| 6. final-reviewer fresh | Phase 5 不在本 flow 範圍（見 `flows/ultracode-review.md`），規則原樣適用 |
 
 ## 7. 與 native 路徑的行為差異（已接受的取捨）
 
 - reviewer 輸出由 schema 強制結構化：04-apply.md 的「Malformed reviewer output」補救分支在此路徑**不存在**；verdict 與 severity 清單矛盾時，一律以 severity 清單路由（與 04-apply.md「Severity-based routing」同義）。
-- 04-apply.md step 3（Edit 翻 checkbox）與 step 4（haiku fold-in）合併為 script 內單一 git-ops agent。
+- 04-apply.md step 3（Edit 翻 checkbox + Recording）與 step 4（haiku fold-in）合併為 script 內單一 git-ops agent；step 1b 的驗證指令由同一個 gitOps 模型的 verify agent 執行。
+- `[Minor]` 每輪最多記錄 5 條（script 截斷，對應 task-reviewer.md 的 noise limit）；`[Minor]` 與 `[Pre-existing]` 一律不回灌 implementer。
 - 執行期間過程可觀測性下降（背景執行）：以 `log()` 訊息、journal.jsonl、與邊界 todo 同步補償為「事後可稽核」。
