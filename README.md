@@ -40,7 +40,7 @@ The skill works on whatever git branch is currently checked out — it does **no
 
 The skill refuses to start if there are tracked-file changes (modified or staged). Untracked files are allowed and do not block startup.
 
-Recommended: a `REVIEW.md` at the repo root (or `openspec/REVIEW.md`) with the project's failure modes, `sensitive_paths`, `quick_paths` and `skip_paths`. Every reviewer reads it. Pre-flight offers to create one from `templates/REVIEW.md` or the Android example `examples/REVIEW.android.md`. Without it, reviewers use generic rules only and no change is ever classified Deep automatically.
+Recommended: a `REVIEW.md` at the repo root (or `openspec/REVIEW.md`) with the project's failure modes, `sensitive_paths`, `quick_paths` and `skip_paths`. Every reviewer reads it. Pre-flight offers to create one from `templates/REVIEW-rules.md` or the Android example `examples/REVIEW.android.md`. Without it, reviewers use generic rules only and no change is ever classified Deep automatically.
 
 ## Layout
 
@@ -85,7 +85,8 @@ super-spec/
 │   ├── spec-delta.md             # openspec requirement deltas (merged into living spec at archive)
 │   ├── review.md
 │   ├── revision-block.md
-│   └── REVIEW.md                 # project review rules template (copied into the user's repo)
+│   └── REVIEW-rules.md           # project review rules template (copied into the user's repo as REVIEW.md;
+│                                 #   not named REVIEW.md so it cannot collide with review.md on case-insensitive filesystems)
 ├── examples/
 │   └── REVIEW.android.md         # Android / AOSP lifecycle checklist as a REVIEW.md
 ├── evals/

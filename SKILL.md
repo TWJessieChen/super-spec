@@ -77,7 +77,7 @@ When a phase file tells you to write an artifact, Read the matching template fir
 | `specs/<capability>/spec.md` (spec delta) | `templates/spec-delta.md` |
 | `review.md` | `templates/review.md` |
 | `## Revisions` block (Recover flow) | `templates/revision-block.md` |
-| `REVIEW.md` (project review rules; offered by pre-flight) | `templates/REVIEW.md`, or `examples/REVIEW.android.md` |
+| `REVIEW.md` (project review rules; offered by pre-flight) | `templates/REVIEW-rules.md`, or `examples/REVIEW.android.md` |
 
 ---
 

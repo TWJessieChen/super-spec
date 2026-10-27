@@ -52,7 +52,7 @@ Reviewers read `REVIEW.md` (repo root or `openspec/REVIEW.md`) for project-speci
 
 Only when this invocation starts a **new** change (not a resume), check `ls REVIEW.md openspec/REVIEW.md 2>/dev/null`. If neither exists, ask once (AskUserQuestion):
 > "This repo has no REVIEW.md, so reviewers only apply generic rules and no path is treated as sensitive. Create one now?"
-- **Create from the generic template** → copy `templates/REVIEW.md` (this skill's directory) to `REVIEW.md`
+- **Create from the generic template** → copy `templates/REVIEW-rules.md` (this skill's directory) to `REVIEW.md`
 - **Create from the Android example** → copy `examples/REVIEW.android.md` to `REVIEW.md`
 - **Not now** → continue
 

@@ -166,7 +166,7 @@ Repeated review findings are cheapest to fix at the source. Collect the classes:
 
 Drop `verification-failure` and `unclassified`. A class qualifies when it appears **≥ 2 times in this change** or **≥ 3 times across history**.
 
-If none qualify, skip. Otherwise list them with counts and ask (AskUserQuestion, multiSelect): "These kinds of mistakes keep coming up. Add a check for them to REVIEW.md?" For each selected class, add one line under `## Always check` in `REVIEW.md` (create it from `templates/REVIEW.md` if missing) describing what to look for, and commit separately by delegating to a haiku Agent subagent (same opening line and failure rules as step 4; `git add` only the REVIEW.md path): `docs(review): add recurring checks from <name>`. This commit lands after the archive commit on purpose — it is a project-rule change, not part of the feature. If a class is better caught by a linter rule or a CLAUDE.md instruction, say so in one line instead of adding it.
+If none qualify, skip. Otherwise list them with counts and ask (AskUserQuestion, multiSelect): "These kinds of mistakes keep coming up. Add a check for them to REVIEW.md?" For each selected class, add one line under `## Always check` in `REVIEW.md` (create it from `templates/REVIEW-rules.md` if missing) describing what to look for, and commit separately by delegating to a haiku Agent subagent (same opening line and failure rules as step 4; `git add` only the REVIEW.md path): `docs(review): add recurring checks from <name>`. This commit lands after the archive commit on purpose — it is a project-rule change, not part of the feature. If a class is better caught by a linter rule or a CLAUDE.md instruction, say so in one line instead of adding it.
 
 ## 5. STOP
 
