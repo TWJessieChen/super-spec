@@ -33,6 +33,7 @@ Panel 成本約單 reviewer 的 3–5 倍，小 change 不划算。**Deep 深度
 | `paths` | change 目錄 | `{proposal, design, tasks, specsDir}` 四個路徑 |
 | `verification` | `phases/05-final-review.md` 第 2 節的 `{VERIFICATION}` 文字 | 逐字（走到這裡代表 exit 0 或未定義） |
 | `reviewDepth` | 第 3 節結果 | `Standard` 或 `Deep` |
+| `rulesBase` | `phases/05-final-review.md` 第 1 節的 `RULES_BASE` | baseline 完整 hash；lens 從它讀 `REVIEW.md` / `CLAUDE.md`（Isolation Rule 7） |
 | `models` | `proposal.md` `## Ultracode Agent Models` 表的 panel 列 | 對映 `{lens, holistic, skeptic, judge}`；**表中缺 panel 列時（v1 建立的 proposal）用預設：lens=sonnet、holistic=opus、skeptic=sonnet、judge=sonnet** |
 | `templates` | Read 七個檔（逐字全文，`{PLACEHOLDER}` 原樣保留） | `_isolation-preamble.md`、`final-lens-spec.md`、`final-lens-lifecycle.md`、`final-lens-coherence.md`、`final-reviewer.md`（holistic lens 原樣重用）、`final-skeptic.md`、`final-judge.md` |
 
@@ -42,10 +43,10 @@ Panel 成本約單 reviewer 的 3–5 倍，小 change 不划算。**Deep 深度
 
 呼叫 Workflow：`scriptPath` = 本 skill 目錄的 `workflows/final-review.js`。
 
-script 回傳 `{verdict, summary, issues, notes, downgradedNotes, preExisting, suggestions, panelStats}`。處理順序：
+script 回傳 `{verdict, summary, issues, notes, downgradedNotes, preExisting, suggestions, preVoteCandidates, panelStats}`。處理順序：
 
 1. **Sanity 重算**（orchestrator 對 script 的最後防線，對應 05 的 severity rule 再驗證）：`verdict` 必須滿足——`APPROVED` ⇔ `issues` 為空；`CHANGES REQUESTED` ⇔ `issues` 非空且無 `is_design_flaw=true`；`NEEDS DESIGN UPDATE` ⇔ 存在 `is_design_flaw=true`。不符（理論上不可能，script 是 deterministic）→ 不採用該結果，整個 workflow 重跑一次；再不符 → 暫停，把 script 回傳的 JSON 原文完整呈給使用者並等待指示（不自行改寫或挑選其中一次的結果）。
-2. **組 `review.md`**：依 `templates/review.md` 結構與 `phases/05-final-review.md` 第 6 節組稿——header 欄位照第 6 節、`Verdict` = verdict、`Summary` = summary、`## Issues` = issues（severity 排序、含 design-level flaw 標註與 `{class: …}`）、`## Notes` = notes（含降級標註）、`## Pre-existing` = preExisting、`## Suggested revision tasks` / `## Suggested resolutions` = suggestions、`## Review stats` 的 skeptic 行取自 panelStats。寫入磁碟但**不 commit**（照舊由 Phase 6 吸收）。
+2. **組 `review.md`**：依 `templates/review.md` 結構與 `phases/05-final-review.md` 第 6 節組稿——header 欄位照第 6 節、`Verdict` = verdict、`Summary` = summary、`## Issues` = issues（severity 排序、含 design-level flaw 標註與 `{class: …}`）、`## Notes` = notes（含降級標註）、`## Pre-existing` = preExisting、`## Suggested revision tasks` / `## Suggested resolutions` = suggestions、`## Review stats` 的 skeptic 行取自 panelStats、`## Skeptic ledger` 逐列寫入 preVoteCandidates（格式見 `templates/review.md`，含被投掉的候選——這是 evals 量測 skeptic 有沒有誤殺真 bug 的唯一資料來源）。寫入磁碟但**不 commit**（照舊由 Phase 6 吸收）。
 3. **回到 `phases/05-final-review.md` 第 7 節「Route by verdict」**照規則路由（APPROVED 先處理 dispositions——`downgradedNotes` 就是需要處置的清單；CHANGES REQUESTED 先檢查 round cap 再問 revision tasks；NEEDS DESIGN UPDATE 走 recover）。
 
 `{error: ...}` 回傳（模板契約 fail-fast / judge 中止）→ 修正後整個重跑（read-only 無副作用）。

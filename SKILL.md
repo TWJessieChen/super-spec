@@ -78,6 +78,7 @@ When a phase file tells you to write an artifact, Read the matching template fir
 | `review.md` | `templates/review.md` |
 | `## Revisions` block (Recover flow) | `templates/revision-block.md` |
 | `REVIEW.md` (project review rules; offered by pre-flight) | `templates/REVIEW-rules.md`, or `examples/REVIEW.android.md` |
+| `.claude/skills/verify/` (project verify skill for the Run gate; offered by pre-flight) | `examples/verify-skill.android/SKILL.md` |
 
 ---
 
@@ -91,6 +92,7 @@ These deliver the actual isolation between phases. Apply to every Phase-4 dispat
 4. **Per-task fresh subagent.** Never reuse a subagent across Tasks — fresh implementer + reviewer per dispatch.
 5. **Strip orchestrator context.** Brainstorming conversation, prior Task outputs, reviewer reports — none of these go into a subagent prompt unless the template has a placeholder for them.
 6. **Final-reviewer is also fresh.** Reads files from disk and runs git itself; receives no per-task summaries.
+7. **Rules come from the baseline.** A change cannot modify the checks that judge it. Every reviewer reads `REVIEW.md` / `CLAUDE.md` from `RULES_BASE` (the commit before `openspec(<name>): planning`) via `git show`, never from the working tree; Phase 5 classifies depth from the same snapshot, and a change that edits those files is reviewed at Deep depth. Rule edits made inside a change take effect from the next change.
 
 ---
 
@@ -105,6 +107,9 @@ Review exists to catch real bugs without trapping an agent author in endless rou
 5. **Rounds are capped.** 3 consecutive FAILs on one Task, or 3 final-review rounds, stop and ask the user — including the option to revisit the design.
 6. **Pre-existing problems never block.** They go to `openspec/backlog.md`.
 7. **Approval is bound to a commit.** Phase 6 archives only the HEAD the final review recorded.
+8. **Verification means running it.** Final review runs Full, then Run — the app is started and the spec scenarios are driven (`design.md` `## Verification`, `phases/05-final-review.md` §2b); a scenario no Run covered is reported as checked by reading only.
+9. **Tests are not weakened to pass.** Skipping, sleeping, retrying or loosening a flaky test is a blocking finding (`{class: flaky-workaround}`); a flaky test is fixed at the cause or deleted with a written reason by the user.
+10. **New rules observe before they block.** Checks proposed by Phase 6 or the escape flow must survive `prompts/rule-skeptic.md`, then start under `REVIEW.md` `## Observe` (non-blocking `observe:` notes) until the user promotes them.
 
 ## Dependencies
 

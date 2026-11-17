@@ -19,6 +19,8 @@ export const meta = {
 //     taskReviewer         : 'sonnet',
 //     gitOps               : 'haiku',     // 也負責跑驗證指令
 //   }   ← 來源是 proposal.md 的 ## Ultracode Agent Models 表，非本檔
+//   rulesBase    : string — RULES_BASE：planning commit 的 parent。reviewer 從這個 commit
+//                  讀 REVIEW.md / CLAUDE.md，不讀工作目錄（SKILL.md Isolation Rule 7）
 //   verification : { perTask: string | null }
 //                  — design.md ## Verification 的 Per-task 指令；null = 未定義，跳過
 //   templates    : {
@@ -33,13 +35,13 @@ export const meta = {
 //                  — resume 時使用者裁決的物化副本（首次啟動為 []）
 // ============================================================================
 
-const { changeName, designPath, mode, models, templates, tasks, decisions = [] } = args
+const { changeName, designPath, mode, models, templates, tasks, rulesBase, decisions = [] } = args
 const verifyCmd = (args.verification && args.verification.perTask) || null
 
 // ---- fail-fast：模板 placeholder 契約檢查（跨檔隱式耦合的守門）----
 const REQUIRED_PLACEHOLDERS = {
   implementer: ['{TASK_NUMBER}', '{TASK_BODY}', '{DESIGN_PATH}', '{MODE}', '{RELEVANT_FILES}'],
-  taskReviewer: ['{COMMIT_HASH}', '{DESIGN_PATH}', '{TASK_BODY}', '{MODE}', '{REVIEW_ROUND}', '{PREVIOUS_COMMIT}', '{PREVIOUS_ISSUES}', '{VERIFICATION}'],
+  taskReviewer: ['{COMMIT_HASH}', '{DESIGN_PATH}', '{TASK_BODY}', '{MODE}', '{REVIEW_ROUND}', '{PREVIOUS_COMMIT}', '{PREVIOUS_ISSUES}', '{VERIFICATION}', '{RULES_BASE}'],
 }
 for (const [name, placeholders] of Object.entries(REQUIRED_PLACEHOLDERS)) {
   if (!templates || !templates[name]) return { error: `args.templates.${name} 缺失 — orchestrator 未依 flows/ultracode-apply.md 組裝 args` }
@@ -48,6 +50,7 @@ for (const [name, placeholders] of Object.entries(REQUIRED_PLACEHOLDERS)) {
   }
 }
 if (!templates.isolationPreamble) return { error: 'args.templates.isolationPreamble 缺失' }
+if (!rulesBase) return { error: 'args.rulesBase 缺失 — reviewer 必須從 baseline 讀規則（flows/ultracode-apply.md 第 2 節）' }
 if (!Array.isArray(tasks) || tasks.length === 0) return { error: 'args.tasks 為空 — 無待執行 Task，不應啟動本 workflow' }
 
 // ---- 工具函式 ----
@@ -235,6 +238,7 @@ for (const task of tasks) {
       PREVIOUS_COMMIT: lastReviewedCommit || '(none)',
       PREVIOUS_ISSUES: lastGatingIssues || '(none)',
       VERIFICATION: verificationText,
+      RULES_BASE: rulesBase,
     })
     const review = await agent(reviewPrompt, {
       label: `review:task${n}#r${reviewRound}`,
@@ -249,7 +253,10 @@ for (const task of tasks) {
     // schema 已排除格式錯誤；verdict 與清單矛盾時以清單為準 —— 04-apply.md 的
     // 「Malformed reviewer output」補救分支在本路徑因此不存在。
     const gating = review.issues.filter(isGating)
-    const minors = review.issues.filter(i => i.severity === 'Minor').slice(0, 5)
+    // observe:<id> 是試行規則的命中紀錄（非阻擋），不受 5 條 Minor 上限截斷
+    const isObserve = i => /^observe:/.test(String(i.text || '').trim())
+    const minors = review.issues.filter(i => i.severity === 'Minor' && !isObserve(i)).slice(0, 5)
+      .concat(review.issues.filter(i => i.severity === 'Minor' && isObserve(i)))
     const preExisting = review.issues.filter(i => i.severity === 'Pre-existing')
 
     if (gating.length === 0) {

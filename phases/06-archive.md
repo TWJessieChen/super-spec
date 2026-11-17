@@ -43,7 +43,7 @@ Step 4 squashes **all** implementation commits into this one commit, so the mess
 - From `proposal.md`: extract `## Why` and `## Mode` only. `## Why` seeds the `Why:` line; `## Mode` seeds the footer. **Do NOT source `What`/title from `proposal.md`** — the plan may have drifted from what shipped; describe the delivery.
 - Count implementation commits (`M`) and tasks (from final `tasks.md`, `N`).
 - Confirm `review.md` verdict = `APPROVED`.
-- From `review.md`: the `**Verification:**` line (seeds `Testing:`), the `**Review depth:**` line (seeds `Risk:`), and whether `## Accepted open issues` exists.
+- From `review.md`: the `**Verification:**` and `**Run:**` lines (seed `Testing:`), the `**Review depth:**` line (seeds `Risk:`), and whether `## Accepted open issues` exists.
 - From `design.md` `## Verification`: the Full command, if the review line says none ran.
 
 ### 1b. Build the message (HARD CAP: 18 lines total, including blanks; 19 when the `Unreviewed:` line is present)
@@ -72,7 +72,7 @@ Key changes:
 - <bullet condensed from the delivered commits, area 2>
 - <bullet condensed from the delivered commits, area 3>
 
-Testing: <full verification command> → pass   (or: none defined — reviewed by reading only)
+Testing: <full verification command> → pass; run: <run line> → PASS (<k> scenarios)   (each part may instead read `none defined` / `could not run — <reason>`; when neither ran: `none — reviewed by reading only`)
 Risk: <Quick|Standard|Deep> review<; touched: sensitive paths matched, if Deep><; N accepted open issues, if any>
 
 Archive: openspec/changes/<name>
@@ -166,7 +166,13 @@ Repeated review findings are cheapest to fix at the source. Collect the classes:
 
 Drop `verification-failure` and `unclassified`. A class qualifies when it appears **≥ 2 times in this change** or **≥ 3 times across history**.
 
-If none qualify, skip. Otherwise list them with counts and ask (AskUserQuestion, multiSelect): "These kinds of mistakes keep coming up. Add a check for them to REVIEW.md?" For each selected class, add one line under `## Always check` in `REVIEW.md` (create it from `templates/REVIEW-rules.md` if missing) describing what to look for, and commit separately by delegating to a haiku Agent subagent (same opening line and failure rules as step 4; `git add` only the REVIEW.md path): `docs(review): add recurring checks from <name>`. This commit lands after the archive commit on purpose — it is a project-rule change, not part of the feature. If a class is better caught by a linter rule or a CLAUDE.md instruction, say so in one line instead of adding it.
+If none qualify, skip. Otherwise list them with counts and ask (AskUserQuestion, multiSelect): "These kinds of mistakes keep coming up. Add a check for them to REVIEW.md?" For each selected class:
+
+1. Draft one line in the trigger format: `- [<next free id>] when: <globs / keywords matching where this class occurred> → check: <what to look for> (source: class <name>, changes <names>)`. Derive `when:` from the files the class was reported in.
+2. Dispatch one **sonnet** Agent subagent with `prompts/rule-skeptic.md` (`{RULE_LINE}` = the draft, `{RULE_EVIDENCE}` = the class name, the changes and the `file:line` of each occurrence). Dispatch all selected classes in one message, in parallel.
+3. `refuted: false` → add the line under **`## Observe`** (not `## Always check`): a new rule only reports non-blocking `observe:` hits until the user promotes it. `refuted: true` → do not add it; show the reasoning (and `better_trigger`) in one line.
+
+Create `REVIEW.md` from `templates/REVIEW-rules.md` if missing. Also list, in one line each, any `## Observe` entry that has `observe:` hits recorded in at least 2 archived `review*.md` (`git grep -h "observe:" -- 'openspec/changes/archive/*/review*.md'`) and ask whether to promote it to `## Always check`. Commit the REVIEW.md edits separately by delegating to a haiku Agent subagent (same opening line and failure rules as step 4; `git add` only the REVIEW.md path): `docs(review): add recurring checks from <name>`. This commit lands after the archive commit on purpose — it is a project-rule change, not part of the feature. If a class is better caught by a linter rule or a CLAUDE.md instruction, say so in one line instead of adding it.
 
 ## 5. STOP
 

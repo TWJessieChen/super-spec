@@ -19,6 +19,8 @@ export const meta = {
 //   verification: string — Phase 5 開頭跑的 full 驗證指令輸出（exit 0 才會走到這裡），
 //                 或 '(no full verification command defined in design.md)'
 //   reviewDepth : 'Standard' | 'Deep'（Quick 永遠不走 panel）
+//   rulesBase   : string — RULES_BASE（= baseline）。lens 從這個 commit 讀 REVIEW.md /
+//                 CLAUDE.md，不讀工作目錄（SKILL.md Isolation Rule 7）
 //   models      : { lens, holistic, skeptic, judge } — Agent-tool aliases
 //                 ← 唯一權威是 proposal.md 的 ## Ultracode Agent Models 表（缺
 //                   panel 列時用 flows/ultracode-review.md §3 的預設值）；本檔
@@ -34,16 +36,16 @@ export const meta = {
 //   }
 // ============================================================================
 
-const { changeName, mode, commitRange, paths, models, templates } = args
+const { changeName, mode, commitRange, paths, models, templates, rulesBase } = args
 const verification = args.verification || '(no full verification command defined in design.md)'
 const reviewDepth = args.reviewDepth || 'Standard'
 
 // ---- fail-fast：模板 placeholder 契約檢查 ----
 const REQUIRED_PLACEHOLDERS = {
-  lensSpec: ['{CHANGE_NAME}', '{SPECS_DIR}', '{DESIGN_PATH}', '{COMMIT_RANGE}'],
-  lensLifecycle: ['{CHANGE_NAME}', '{DESIGN_PATH}', '{COMMIT_RANGE}'],
-  lensCoherence: ['{CHANGE_NAME}', '{DESIGN_PATH}', '{TASKS_PATH}', '{MODE}', '{COMMIT_RANGE}', '{VERIFICATION}'],
-  holistic: ['{CHANGE_NAME}', '{PROPOSAL_PATH}', '{DESIGN_PATH}', '{TASKS_PATH}', '{SPECS_DIR}', '{COMMIT_RANGE}', '{REVIEW_ROUND}', '{PREVIOUS_REVIEW_PATH}', '{FOCUS_RANGE}', '{VERIFICATION}', '{REVIEW_DEPTH}'],
+  lensSpec: ['{CHANGE_NAME}', '{SPECS_DIR}', '{DESIGN_PATH}', '{COMMIT_RANGE}', '{RULES_BASE}', '{VERIFICATION}'],
+  lensLifecycle: ['{CHANGE_NAME}', '{DESIGN_PATH}', '{COMMIT_RANGE}', '{RULES_BASE}'],
+  lensCoherence: ['{CHANGE_NAME}', '{DESIGN_PATH}', '{TASKS_PATH}', '{MODE}', '{COMMIT_RANGE}', '{VERIFICATION}', '{RULES_BASE}'],
+  holistic: ['{CHANGE_NAME}', '{PROPOSAL_PATH}', '{DESIGN_PATH}', '{TASKS_PATH}', '{SPECS_DIR}', '{COMMIT_RANGE}', '{REVIEW_ROUND}', '{PREVIOUS_REVIEW_PATH}', '{FOCUS_RANGE}', '{VERIFICATION}', '{REVIEW_DEPTH}', '{RULES_BASE}'],
   skeptic: ['{ISSUE_SEVERITY}', '{ISSUE_FILE}', '{ISSUE_DESCRIPTION}', '{DESIGN_PATH}', '{COMMIT_RANGE}'],
   judge: ['{CHANGE_NAME}', '{VERDICT}', '{CONFIRMED_ISSUES}', '{NOTES}'],
 }
@@ -54,6 +56,7 @@ for (const [name, placeholders] of Object.entries(REQUIRED_PLACEHOLDERS)) {
   }
 }
 if (!templates.isolationPreamble) return { error: 'args.templates.isolationPreamble 缺失' }
+if (!rulesBase) return { error: 'args.rulesBase 缺失 — lens 必須從 baseline 讀規則（flows/ultracode-review.md 第 3 節）' }
 
 const fill = (tpl, vars) => Object.entries(vars).reduce((s, [k, v]) => s.split('{' + k + '}').join(String(v)), tpl)
 const preamble = templates.isolationPreamble + '\n\n---\n\n'
@@ -105,6 +108,7 @@ const commonVars = {
   FOCUS_RANGE: commitRange,
   VERIFICATION: verification,
   REVIEW_DEPTH: reviewDepth,
+  RULES_BASE: rulesBase,
 }
 // holistic lens 重用現行 final-reviewer.md 模板（逐字），但以附註覆寫其輸出段：
 // panel 模式下 verdict 由 script 計算，holistic 只產 issues。
@@ -249,6 +253,20 @@ return {
   downgradedNotes: notes.filter(n => n.downgraded).map(n => n.text),
   preExisting,
   suggestions: judge.suggestions,
+  // 投票前的 gating 候選與投票結果：寫進 review.md 的 ## Skeptic ledger，供 evals 分開量測
+  // 「lens 有抓到」與「投票後還在」，看 skeptic 有沒有把真 bug 投掉（evals/README.md）
+  preVoteCandidates: gatingCandidates.map(i => {
+    const s = settled.find(x => x.file === i.file && x.description === i.description) || {}
+    return {
+      severity: i.severity,
+      file: i.file,
+      description: i.description,
+      class: i.class || 'unclassified',
+      lens: i.lens,
+      confirms: s.confirms === undefined ? null : s.confirms,
+      finalSeverity: s.severity || i.severity,
+    }
+  }),
   panelStats: {
     lensesReturned: lenses.length,
     candidates: candidates.length,

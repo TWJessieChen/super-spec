@@ -11,15 +11,22 @@
 - Streaming or codec pipelines that do not stop producers before releasing consumers (frames delivered into a released surface or codec).
 
 ## Always check
-- **Dispatcher / scope**: every `launch` / `withContext` runs on the right dispatcher; nothing long-running or blocking on `Dispatchers.Main`.
-- **Structured concurrency**: `launch` lives in a scope cancelled on owner teardown (`viewModelScope`, `lifecycleScope`, a service-owned scope); no `GlobalScope` or detached coroutines.
-- **Cancellation safety**: every `allocate → use → release` sequence releases on `CancellationException` (`try/finally`, `use { }`, or catch + cleanup + rethrow).
-- **start/stop pairing & ordering**: `start*` / `register*` / `acquire*` / `addView` / `bindService` each have a matching `stop*` / `unregister*` / `release*` / `removeView` / `unbindService`; stop the listener BEFORE cancelling the scope that feeds it; close the resource BEFORE nulling the field that owns it.
-- **Long-lived owners**: anything registered on Application, a system service, `AppWidgetManager`, `ContentResolver`, an EventBus or a `BroadcastReceiver` is unregistered on teardown.
-- **System-allocated ids**: AppWidgetHost ids, JobScheduler ids, MediaSession tokens, Binder cookies are returned on the failure / cancellation path, not only on success.
-- **Shared state**: cross-thread mutable state uses `Mutex` / atomics / single-thread confinement; `StateFlow` / `SharedFlow` for cross-thread observation.
-- **MediaCodec / RTSP**: `stop()` → `release()` order honored; input/output buffers not touched after release; reconnect loops have an upper bound and backoff; repeated triggers have an in-flight guard.
-- **Exported components**: new `exported="true"` activities / services / receivers / providers have a permission or an explicit reason.
+<!-- Format: [id] when: <globs / diff keywords> → check: <what to look for> (source: …). Reviewers apply an entry
+     only when its `when:` matches the diff. Replace `source: super-spec example` with your own escape cases / PRs. -->
+- [A1] when: launch, async, withContext, Dispatchers. → check: **Dispatcher / scope** — every `launch` / `withContext` runs on the right dispatcher; nothing long-running or blocking on `Dispatchers.Main`. (source: super-spec example)
+- [A2] when: launch, async, GlobalScope, CoroutineScope( → check: **Structured concurrency** — `launch` lives in a scope cancelled on owner teardown (`viewModelScope`, `lifecycleScope`, a service-owned scope); no `GlobalScope` or detached coroutines. (source: super-spec example)
+- [A3] when: suspend fun, allocate, acquire, open(, use { → check: **Cancellation safety** — every `allocate → use → release` sequence releases on `CancellationException` (`try/finally`, `use { }`, or catch + cleanup + rethrow). (source: super-spec example)
+- [A4] when: start, register, acquire, addView, bindService → check: **start/stop pairing & ordering** — each has a matching `stop*` / `unregister*` / `release*` / `removeView` / `unbindService`; stop the listener BEFORE cancelling the scope that feeds it; close the resource BEFORE nulling the field that owns it. (source: super-spec example)
+- [A5] when: registerReceiver, ContentResolver, AppWidgetManager, EventBus, addListener, observeForever → check: **Long-lived owners** — anything registered on Application, a system service, `AppWidgetManager`, `ContentResolver`, an EventBus or a `BroadcastReceiver` is unregistered on teardown. (source: super-spec example)
+- [A6] when: allocateAppWidgetId, JobScheduler, MediaSession, Binder → check: **System-allocated ids** — AppWidgetHost ids, JobScheduler ids, MediaSession tokens, Binder cookies are returned on the failure / cancellation path, not only on success. (source: super-spec example)
+- [A7] when: @Volatile, AtomicReference, Mutex, synchronized, Thread(, Executor → check: **Shared state** — cross-thread mutable state uses `Mutex` / atomics / single-thread confinement; `StateFlow` / `SharedFlow` for cross-thread observation. (source: super-spec example)
+- [A8] when: MediaCodec, MediaExtractor, Surface, rtsp, RTSP, RtpPacket → check: **MediaCodec / RTSP** — `stop()` → `release()` order honored; input/output buffers not touched after release; reconnect loops have an upper bound and backoff; repeated triggers have an in-flight guard. (source: super-spec example)
+- [A9] when: **/AndroidManifest.xml, exported= → check: **Exported components** — new `exported="true"` activities / services / receivers / providers have a permission or an explicit reason. (source: super-spec example)
+
+## Observe
+<!-- Trial checks, same format. A hit is only a non-blocking `[Minor] observe:<id>` note. Promote to Always check
+     once the hits have been real problems. -->
+- 
 
 ## Sensitive paths
 sensitive_paths:

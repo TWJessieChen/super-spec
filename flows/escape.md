@@ -51,9 +51,13 @@ Write `openspec/review-evals/<YYYY-MM-DD>-<name>-<class>.md`:
 ## 4. Close the loop at the source
 
 Based on `missing_layer`, offer (AskUserQuestion, multiSelect) the fixes that apply:
-- add a line to `REVIEW.md` → `## Always check`
+- add a check to `REVIEW.md` (lands under `## Observe` first — see below)
 - add the path to `REVIEW.md` → `sensitive_paths`
-- add a test or extend `## Verification` — note it as a backlog item in `openspec/backlog.md`
+- add a test or extend `## Verification` (including the Run line / verify skill's feature map) — note it as a backlog item in `openspec/backlog.md`
+
+**A new check must survive a skeptic before it is written.** Draft it in the trigger format — `- [<next free id>] when: <globs / keywords that would have matched this escape's diff> → check: <what to look for> (source: escape <case file name>)` — then dispatch one **sonnet** Agent subagent with `prompts/rule-skeptic.md`: `{RULE_LINE}` = the draft line, `{RULE_EVIDENCE}` = the case file path, the change's archive commit and the bug's file:lines. Act on the JSON it returns:
+- `refuted: false` → write the line under `## Observe` in `REVIEW.md` (create the section from `templates/REVIEW-rules.md` if missing). It reports non-blocking `observe:` hits until you promote it to `## Always check`.
+- `refuted: true` → do not write it. Show the reasoning, and the `better_trigger` if one was given; offer once to retry with that trigger (one more skeptic). Otherwise record `missing_layer` as is — the case still counts in evals.
 
 ## 5. Commit
 

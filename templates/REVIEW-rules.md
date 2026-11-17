@@ -7,8 +7,11 @@ so keep it short — link to longer docs instead of pasting them.
 
 What belongs here: what failure looks like in THIS project, what to always check, which paths
 are risky, and what to ignore. What does not belong here: general coding advice the model
-already knows. When the same review comment keeps coming back, add it under "Always check"
-(super-spec Phase 6 proposes these for you).
+already knows. When the same review comment keeps coming back, super-spec proposes a check for it
+(Phase 6, or the escape flow) — new checks start under "Observe".
+
+Reviewers read this file from the commit BEFORE the change started, never from the change itself:
+editing it inside a change only takes effect from the next change, and the edit is itself reviewed.
 -->
 
 ## What failure looks like here
@@ -19,8 +22,20 @@ already knows. When the same review comment keeps coming back, add it under "Alw
 - 
 
 ## Always check
-<!-- Project-specific checks reviewers should apply on top of their generic rubric.
-     One line each, phrased as what to look for. -->
+<!-- Project-specific checks reviewers apply on top of their generic rubric. One line each:
+       - [C<n>] when: <globs and/or diff keywords, comma-separated> → check: <what to look for> (source: <escape case, PR or incident>)
+     Reviewers apply an entry only when its `when:` matches the diff (a glob matches a changed path, a keyword
+     appears in an added or removed line), so a long list stays cheap and quiet. An entry without `when:` applies
+     to every change — keep those few. `source:` says why the check exists; a check nobody can explain is a
+     candidate for deletion. Example:
+       - [C1] when: **/*Service*.kt, bindService, registerReceiver → check: every bind/register has its unbind/unregister on every teardown path (source: escape 2026-10-03-player-leak) -->
+- 
+
+## Observe
+<!-- Trial checks: same format as "Always check". Reviewers apply them but a hit is only ever a
+     non-blocking note (`[Minor] observe:<id> …`), so you can see what a rule would flag before it can block
+     anyone. Promote an entry to "Always check" once its hits have been real problems; delete it if they were
+     noise. New checks proposed by super-spec land here first. -->
 - 
 
 ## Sensitive paths

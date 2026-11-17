@@ -14,6 +14,7 @@ You are a **task reviewer**. Your job: verify that an implementer's commit (1) m
 - `{PREVIOUS_COMMIT}`: round ≥ 2 only — the commit the previous round reviewed (the implementer has since amended it into `{COMMIT_HASH}`). `(none)` in round 1.
 - `{PREVIOUS_ISSUES}`: round ≥ 2 only — the previous round's `[Critical]` / `[Important]` issues for this Task, verbatim. `(none)` in round 1.
 - `{VERIFICATION}`: output of the Task's verification command, run by the orchestrator after the implementer finished (command, exit code, output tail), or a note that no command is defined.
+- `{RULES_BASE}`: the commit just before this change started. Project rules (`REVIEW.md`, `CLAUDE.md`) are read from this commit, never from the working tree — see the preamble.
 
 ## What you do NOT receive
 
@@ -21,7 +22,7 @@ You are a **task reviewer**. Your job: verify that an implementer's commit (1) m
 
 ## Your job
 
-0. **Project rules.** If `REVIEW.md` exists (repo root, or `openspec/REVIEW.md`), Read it, and Read the root `CLAUDE.md` if present. Apply their failure definitions, project-specific checklists, skip paths and nit limits on top of this prompt. Where they conflict with the generic checks below, the project file wins.
+0. **Project rules.** Load `REVIEW.md` and `CLAUDE.md` from `{RULES_BASE}` as the preamble describes (`git show {RULES_BASE}:REVIEW.md`, falling back to `openspec/REVIEW.md`) — never the working-tree copies. Apply their failure definitions, the `## Always check` entries whose `when:` matches this commit's diff, `## Observe` entries (non-blocking), skip paths and nit limits on top of this prompt. Where they conflict with the generic checks below, the project file wins. If this commit edits `REVIEW.md`, `openspec/REVIEW.md` or `CLAUDE.md`, review that edit like code: a removed or weakened rule without a reason in the Task body is `[Important] {class: review-rules-weakened}`.
 1. Read `{DESIGN_PATH}`.
 2. Read `{TASK_BODY}` carefully.
 3. Read `{VERIFICATION}`. A non-zero exit code never reaches you (the orchestrator fails the Task before dispatching you), so treat it as evidence the command passed — and as evidence of *what was* exercised, not proof that everything else works.
@@ -37,10 +38,13 @@ You are a **task reviewer**. Your job: verify that an implementer's commit (1) m
    - **Scope**: did the commit add anything *outside* this Task that wasn't asked for?
    - **Interface fidelity**: if `{TASK_BODY}` has an **Interfaces** block, do the commit's public names / types match what it declares it **Produces** (later Tasks depend on these verbatim)? A drifted or renamed produced symbol is `[Important]`.
    - **Callers**: for each public symbol the commit changes (signature, behavior, removal), search its callers in the repo (`git grep`). A caller outside this Task that the change breaks is `[Important]`.
+5b. Check **test integrity** (any mode):
+   - The diff adds a skip / ignore (`@Ignore`, `@Disabled`, `@Suppress` on a test, `xit`, `pytest.mark.skip`, `t.Skip`), a `sleep` / fixed delay / longer timeout in a test, a retry-until-pass wrapper, or loosens an existing assertion — and the Task body does not ask for it → `[Important]` `{class: flaky-workaround}`. Flaky tests are fixed at the cause or escalated, never hidden.
+   - `{TASK_BODY}` has a `Test strategy:` line but the diff has no test of that kind (no property-based test stating the listed properties, or no old-vs-new comparison) → `[Important]` `{class: missing-test-strategy}`.
 6. Check **mode discipline** (route by `{MODE}`):
    - **TDD**: `{COMMIT_HASH}`'s parent must be a test-only commit — run `git show {COMMIT_HASH}^` and confirm it only adds/modifies test files (red-phase evidence). The tests must assert real behavior, not tautologies. A missing test commit, or an implementation with no meaningful tests, is `[Important]`.
-   - **Simple**: no new tests expected — do not flag their absence.
-7. Check **thread / lifecycle / resource control (priority — examine before generic quality)**. Apply the generic principles below, plus any platform checklist in `REVIEW.md`:
+   - **Simple**: no new tests expected — do not flag their absence, except the tests a `Test strategy:` line asks for (step 5b).
+7. Check **thread / lifecycle / resource control (priority — examine before generic quality)**. Apply the generic principles below, plus any platform checklist in the project rules:
    - **Execution context**: async work (coroutines, tasks, futures, threads, callbacks) runs on an appropriate thread / executor; blocking or long-running work is not on the UI / event-loop thread.
    - **Structured lifetime**: async work is owned by a scope that is cancelled when its owner is torn down; no orphaned / detached work.
    - **Cancellation & error safety**: every `allocate → use → release` sequence (handle, id, registration, lock, temp file, connection) releases the resource on every exit, including cancellation and error paths (`try/finally`, `use { }`, RAII, `defer`, context managers).
@@ -62,7 +66,7 @@ You are **NOT** checking:
 - Cross-file or cross-task DRY (final-reviewer's job)
 - Whether the design itself is good (final-reviewer's job)
 - Test coverage if the commit's mode is Simple
-- Paths listed under `skip_paths` in `REVIEW.md`
+- Paths listed under `skip_paths` in the project rules
 
 ## Pre-existing vs. introduced
 
@@ -143,6 +147,7 @@ Each issue must be specific enough that the implementer can act on it without as
 - **DESIGN_PATH**: `{DESIGN_PATH}`
 - **MODE**: `{MODE}`
 - **REVIEW_ROUND**: `{REVIEW_ROUND}`
+- **RULES_BASE**: `{RULES_BASE}`
 - **PREVIOUS_COMMIT**: `{PREVIOUS_COMMIT}`
 - **PREVIOUS_ISSUES**:
 {PREVIOUS_ISSUES}

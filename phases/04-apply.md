@@ -17,6 +17,8 @@ Read `## Engine` from `openspec/changes/<name>/proposal.md`:
 
 ## Task loop
 
+**`RULES_BASE` (compute once per Phase 4 entry, keep in the conversation):** the commit just before `openspec(<name>): planning` — `git rev-parse "$(git log --grep='openspec(<name>): planning' --format='%H' -n 1)~1"`. Every reviewer reads the project rules (`REVIEW.md`, `CLAUDE.md`) from this commit, never from the working tree, so no Task can weaken the rules that judge it (`SKILL.md` Context Isolation Rule 7).
+
 Loop over each Task in `tasks.md` that is not yet complete (`- [ ]` at the Task header level).
 
 For each Task, do steps 1 → 4 in order. Keep these per-Task counters in the conversation (they reset for every Task):
@@ -67,6 +69,11 @@ The implementer is contractually required to return one line: `Done: <commit_has
 
 If the implementer returns `Blocked: <reason>`, do NOT dispatch a reviewer. Pause the workflow: surface the reason verbatim and ask the user how to proceed (e.g., adjust the design, rewrite this Task's body, skip it, intervene manually). A `Blocked` return does not count toward the consecutive-FAIL counter.
 
+When the reason starts with `flaky test`, ask instead (AskUserQuestion) with these options — skipping, sleeping, retrying or loosening the test is not one of them:
+- **Delete the test with a reason** → you give one line of reason; the next implementer dispatch deletes the test and records `<test> deleted: <reason>` in the commit body and under the Task in `tasks.md` (`**Deleted flaky tests:**`)
+- **Intervene manually** → you fix the cause, then say "continue"
+- **Skip this Task** → as in the failure cap
+
 ## 1b. Run the per-task verification command (machine gate, before any reviewer)
 
 Read `design.md`'s `## Verification` section and take the **Per-task** command.
@@ -94,6 +101,7 @@ Use the **Agent** tool. Read `prompts/task-reviewer.md` and substitute:
 - `{PREVIOUS_COMMIT}`: `lastReviewedCommit`, or `(none)` in round 1
 - `{PREVIOUS_ISSUES}`: `lastGatingIssues` verbatim, or `(none)` in round 1
 - `{VERIFICATION}`: from step 1b
+- `{RULES_BASE}`: from the top of the Task loop
 
 Then set `reviewRound += 1`, `lastReviewedCommit = <this commit>`.
 

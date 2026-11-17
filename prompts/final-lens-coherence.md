@@ -11,6 +11,7 @@ You are the **cross-task coherence lens** of the final-review panel. You are one
 - `{TASKS_PATH}`: path to `tasks.md` (the planned breakdown, including each Task's Interfaces block)
 - `{MODE}`: `TDD` or `Simple`
 - `{COMMIT_RANGE}`: git range covering the entire change
+- `{RULES_BASE}`: the commit just before this change started — project rules are read from it (see the preamble)
 - `{VERIFICATION}`: output of the change's full verification command, run by the orchestrator (command, exit code, output tail), or a note that none is defined
 
 ## Your job — cross-task perspective ONLY
@@ -40,7 +41,7 @@ Read `{DESIGN_PATH}` and `{TASKS_PATH}`, then `git diff {COMMIT_RANGE}`, and exa
 
 ## Project rules, pre-existing issues, noise
 
-- If `REVIEW.md` exists (repo root, or `openspec/REVIEW.md`), Read it (and the root `CLAUDE.md` if present); apply its failure definitions, platform checklists and `skip_paths` within your lens.
+- Load `REVIEW.md` (and `CLAUDE.md`) from `{RULES_BASE}` as the preamble describes — never the working-tree copies; apply its failure definitions, the `## Always check` entries whose `when:` matches the diff, `## Observe` entries (non-blocking `[Minor] observe:<id>` only), and `skip_paths` within your lens.
 - If a problem lives in lines this change did not add or modify (check with `git blame` / the diff), report it with severity `Pre-existing` — it goes to the project backlog and does not block. Exception: if the change makes an old bug newly reachable, use the real severity and say how.
 - At most **5** `Minor` items. Every issue cites file:line evidence; never report what you cannot point at.
 - Every `Critical` / `Important` issue sets `class`: a short kebab-case name for the *kind* of mistake (e.g. `listener-not-unregistered`), so the fix covers every instance.
@@ -58,5 +59,6 @@ Report **only** via the structured output schema: an `issues` array of `{severit
 - **TASKS_PATH**: `{TASKS_PATH}`
 - **MODE**: `{MODE}`
 - **COMMIT_RANGE**: `{COMMIT_RANGE}`
+- **RULES_BASE**: `{RULES_BASE}`
 - **VERIFICATION**:
 {VERIFICATION}

@@ -53,6 +53,18 @@ git commits. Apply these overrides:
    direction as the cost model — fewer, larger tasks — but the cost model is the
    authority here). Read it before drafting tasks.md.
 
+7. Test strategy. A Task whose work is a rewrite or port of existing behavior,
+   serialization / encoding / parsing, a state machine, a data migration, or a
+   retry / normalization step gets one extra line under its header:
+     `Test strategy: property (<properties>)`  — e.g. round-trip (decode(encode(x)) == x),
+       invariant (<what must never happen>), idempotent (running twice == once),
+       equivalence (optimized == simple reference)
+     `Test strategy: differential (<old impl> vs <new impl>, inputs: <generated | recorded sample>,
+       ignore: <irrelevant differences>, intended: <expected differences>)`
+   Example-based unit tests share the author's blind spots; generated inputs and
+   old-vs-new comparison do not. Other Tasks need no such line. In Simple mode,
+   still write the line when it applies — it makes that Task write those tests.
+
 All other plan-writing behavior (file structure, no placeholders, self-review)
 runs as normal.
 ```
@@ -87,7 +99,8 @@ A Task = **one implementer dispatch + one reviewer dispatch + one commit**. Each
 - Read the design from `openspec/changes/<name>/design.md`
 - Read the mode from `openspec/changes/<name>/proposal.md`'s `## Mode` section
 - For **TDD** mode: each Task includes explicit "write failing test → run to confirm fail → implement minimal code → run to confirm pass → commit" sub-steps
-- For **Simple** mode: omit test-writing sub-steps; include "verify existing tests still pass" as a final sub-step **of the Task** (not after every sub-step)
+- For **Simple** mode: omit test-writing sub-steps; include "verify existing tests still pass" as a final sub-step **of the Task** (not after every sub-step) — except a Task with a `Test strategy:` line (override 7), which gets one sub-step writing exactly those property / differential tests
+- In either mode, a `Test strategy:` line makes the test-writing sub-step name the properties or the old-vs-new comparison to write
 
 Sub-steps within a Task are 2–5 minute atomic actions with `- [ ]` checkboxes. A Task itself should be sized so that the substantive work clears the dispatch-overhead break-even — typically 30min – 2hr of equivalent implementer work, not 5min.
 

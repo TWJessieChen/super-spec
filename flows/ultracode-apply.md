@@ -22,6 +22,7 @@
 | `designPath` | `openspec/changes/<name>/design.md` | — |
 | `mode` | `proposal.md` `## Mode` 行 | 只留 discipline：`TDD (Sonnet)` / `TDD (Opus)` → `TDD`；`Simple` → `Simple` |
 | `models` | `proposal.md` `## Ultracode Agent Models` 表 | 逐列對映 `{implementer, implementerEscalated, taskReviewer, gitOps}`；Simple mode 的 implementer 記 `inherit` |
+| `rulesBase` | `phases/04-apply.md` Task loop 開頭算出的 `RULES_BASE` | planning commit 的 parent 完整 hash；reviewer 從它讀 `REVIEW.md` / `CLAUDE.md`（Isolation Rule 7） |
 | `verification` | `design.md` `## Verification` 的 **Per-task** 行 | `{perTask: "<指令逐字>"}`；section 不存在或為 `(none)` → `{perTask: null}`（script 跳過驗證步驟） |
 | `templates.isolationPreamble` | Read `prompts/_isolation-preamble.md` | **逐字全文**，不改寫不摘要 |
 | `templates.implementer` | Read `prompts/implementer.md` | 逐字全文，`{PLACEHOLDER}` 原樣保留——變數替換由 script 內 split/join 執行，不在此處 |
@@ -70,6 +71,7 @@
 |---|---|
 | 1. Agent tool 隔離 | Workflow 的每個 `agent()` 就是 fresh-context 子代理 |
 | 2. prompt 逐字來自 `prompts/*.md` | orchestrator 在**啟動時**逐字 Read 模板經 args 傳入；script 只做 `{PLACEHOLDER}` split/join 替換，不改寫模板文字 |
+| 7. 規則來自 baseline | args 帶 `rulesBase`，reviewer 模板以 `{RULES_BASE}` 指向它；script 缺此欄就 fail-fast |
 | 3. reviewer 只看 git 不看敘事 | script 內 reviewer prompt 僅由模板 + commit hash + Task body + 同一 Task 上一輪的 gating 清單（round ≥ 2）+ 機器驗證輸出組成；implementer 回傳是 schema 物件，敘事欄位在結構上進不了 reviewer prompt |
 | 4. per-Task fresh subagent | 每次 `agent()` 呼叫都是新代理，迴圈內不重用 |
 | 5. strip orchestrator context | 第 2 節的 args 白名單 |

@@ -58,6 +58,17 @@ Only when this invocation starts a **new** change (not a resume), check `ls REVI
 
 After creating, show the file path and tell the user to trim and fill it in; then delegate a haiku Agent subagent to commit just that file: `docs(review): add REVIEW.md` (this lands before the planning commit, so it is not part of the change). Never halt on this check.
 
+## 6. Verify skill (soft; new changes only)
+
+Final review's Run gate (`phases/05-final-review.md` §2b) starts the app and drives the spec scenarios. It works best with a project verify skill that knows how to boot and drive this app.
+
+Only when this invocation starts a **new** change, check `ls .claude/skills/verify*/SKILL.md */.claude/skills/verify*/SKILL.md 2>/dev/null`. If nothing is found, ask once (AskUserQuestion):
+> "This repo has no verify skill, so the final review can only start the app if design.md names a command. Create one now?"
+- **Create from the Android example** → copy this skill's `examples/verify-skill.android/` to `.claude/skills/verify/`; tell the user to fill in its PROJECT block (package, launch activity, feature map)
+- **Not now** → continue
+
+After creating, delegate a haiku Agent subagent to commit just that folder: `chore(verify): add verify skill` (lands before the planning commit, so it is not part of the change). Never halt on this check.
+
 ## Branch policy
 
 Do **NOT** check the current branch. Do **NOT** create a new branch. All commits go on the current branch.

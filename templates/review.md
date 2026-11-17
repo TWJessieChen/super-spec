@@ -6,7 +6,9 @@
 **Focus range:** <same as reviewed range in round 1; prev_head..REVIEWED_HEAD in round ≥ 2>
 **Reviewed HEAD:** <full hash of HEAD when the review ran — Phase 6 archives only if HEAD still equals this>
 **Review depth:** <Quick | Standard | Deep> (<auto: reason | set in proposal.md>)
+**Review rules:** <REVIEW.md @ <RULES_BASE short hash> | none at baseline> · change modifies review rules: <yes | no>
 **Verification:** <`<full command>` → exit 0 | none defined>
+**Run:** <`<run line>` → PASS (<k> scenarios) | could not run — <reason> | none — <reason>>
 **Verdict:** <APPROVED | CHANGES REQUESTED | NEEDS DESIGN UPDATE>
 
 ## Summary
@@ -43,6 +45,10 @@
 <APPROVED only, when any item needed one (skeptic-downgraded or accepted). Omit otherwise.>
 - <item> → <False positive | Intentional | Not important | Fix later>
 
+## Skeptic ledger
+<only when skeptics voted (Deep native-verify, or the ultracode panel). One line per blocking candidate BEFORE the vote, including ones voted down. Omit otherwise.>
+- [<original severity>] <file> — <description> {class: <kebab-case>} · lens: <lens or reviewer> · confirms: <0|1|2|unverified> → <final severity>
+
 ## Review stats
 - Tasks: <n> (<k> skipped)
 - Passed review in one round: <k> / <n> (<pct>%)
@@ -51,3 +57,5 @@
 - Final review round: <N>
 - Skeptic verification: <candidates / verified / downgraded / moved to pre-existing, or "not run">
 - Pre-existing items found: <k>
+- Checks triggered: <ids from REVIEW.md @ RULES_BASE whose `when:` matched, e.g. A3, A8 | none>
+- Observe hits: <observe:<id> notes reported by reviewers | none>

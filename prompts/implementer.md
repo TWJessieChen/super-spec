@@ -26,7 +26,11 @@ You are an **implementer** subagent. Your job: implement **a single Task** from 
    them) — do not rename or re-shape them.
 3. Execute each sub-step in `{TASK_BODY}`, in order:
    - **TDD mode**: write failing test first → run to confirm failure → write minimal code to pass → run to confirm pass.
-   - **Simple mode**: write the code directly, no new tests. After implementing, run any existing test suite that covers the touched code to confirm nothing broke. Do **not** add new tests.
+   - **Simple mode**: write the code directly, no new tests. After implementing, run any existing test suite that covers the touched code to confirm nothing broke. Do **not** add new tests — unless `{TASK_BODY}` has a `Test strategy:` line (below), which you then follow.
+   - **Test strategy.** If `{TASK_BODY}` has a `Test strategy:` line, the tests you write must follow it:
+     - `property (<properties>)` → write property-based tests that state each listed property (round-trip, invariant, idempotent, equivalence with a simple reference) and let the library generate inputs: Kotest property testing or jqwik (Kotlin / Java), Hypothesis (Python), fast-check (JS / TS), proptest (Rust). In TDD mode these are your red-phase tests. Fix the seed or keep the library's failure-replay so a failure reproduces.
+     - `differential (<old> vs <new>, inputs: …)` → run the old and the new implementation on the same inputs and assert equal outputs; normalize differences the Task says are irrelevant, and list intentional differences explicitly in the test as an approved-changes list.
+3b. **Flaky tests — never paper over them.** If a test (new or existing) passes and fails without code changes, you may **not**: skip or `@Ignore` / `@Disabled` / `xit` it, add `sleep` / fixed delays / longer timeouts, wrap it in retry-until-pass, or loosen its assertion. Find the cause (shared state, ordering, real time, threads, network) and fix it. If you cannot find it within this Task, stop and return `Blocked: flaky test <test name> — <what you checked>`; the user decides whether to delete it with a written reason.
 4. Commit. The protocol differs by mode — the reviewer verifies it from git history:
    - **TDD mode**: exactly **two commits**. Commit the failing test alone (`test(<scope>): ...`) immediately after confirming the failure — this is the red-phase evidence — then commit the implementation (plus any test adjustments) once tests pass.
    - **Simple mode**: a **single commit** when the Task is complete.

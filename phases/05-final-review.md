@@ -12,6 +12,9 @@ Compute and keep in the conversation:
 - **`COMMIT_RANGE`** = `<baseline_hash>..HEAD`, where baseline = the commit immediately **before** `openspec(<name>): planning`. Find with: `git log --oneline --grep="openspec(<name>): planning" --format="%H" -n 1` then `git rev-parse <hash>~1`.
 - **`PREVIOUS_REVIEW_PATH`** = round 1: `(none)`; round ≥ 2: `openspec/changes/<name>/review-r<N-1>.md`.
 - **`FOCUS_RANGE`** = round 1: same as `COMMIT_RANGE`; round ≥ 2: `<prev_head>..HEAD`, where `<prev_head>` is the `**Reviewed HEAD:**` value in the previous review file (if that line is missing — a review written before this field existed — fall back to `COMMIT_RANGE`).
+- **`RULES_BASE`** = `<baseline_hash>` (the same commit). Reviewers load `REVIEW.md` / `CLAUDE.md` from it, and section 3 classifies depth from it — never from the working tree (`SKILL.md` Context Isolation Rule 7). Load the rules once now: `git show <RULES_BASE>:REVIEW.md`, falling back to `git show <RULES_BASE>:openspec/REVIEW.md`; neither → no project rules.
+- **`RULES_TOUCHED`** = whether `git diff --name-only <COMMIT_RANGE>` lists `REVIEW.md`, `openspec/REVIEW.md` or `CLAUDE.md`.
+- **`CHECKS_TRIGGERED`** = the ids of the `## Always check` and `## Observe` entries in those rules whose `when:` matches this change: a glob matches a path in `git diff --name-only <COMMIT_RANGE>`, or a keyword appears in an added or removed line of `git diff <COMMIT_RANGE>` (use `git diff <COMMIT_RANGE> | grep -E '^[+-]' | grep -F -- '<keyword>'`). Entries without `when:` count as triggered. This is for the record only (it feeds `## Review stats`, so unused checks can be found later); reviewers do their own matching.
 - **`REVIEWED_HEAD`** = `git rev-parse HEAD` now. Phase 5 never commits code, so HEAD must still equal this when `review.md` is written; Phase 6 refuses to archive if it no longer does.
 
 ## 2. Full verification gate (machine check before any reviewer)
@@ -23,17 +26,35 @@ Read `design.md`'s `## Verification` section and take the **Full** command.
   - **exit 0** → `{VERIFICATION}` = `` `<command>` → exit 0 `` + fenced tail. Continue.
   - **non-zero** → do **not** dispatch any reviewer (no point paying for a review of a change that does not build or pass its tests). Write `review.md` directly (section 6) with `Verdict: CHANGES REQUESTED`, Summary `Full verification failed; review skipped until it passes.`, one issue `- [Critical] verification command failed: \`<command>\` exited <n> {class: verification-failure}` followed by the fenced tail, and one suggested revision task `Make \`<command>\` pass (output tail in review.md)`. Go to section 7.
 
+### 2b. Run gate (start the app and drive the scenarios)
+
+Only after Full passed (or is undefined). Take the **Run** line from `design.md`'s `## Verification`.
+
+- **No line, or `(none)…`** → `RUN` = `none: <reason from design.md, or "not defined">`. Append `Run: none — <reason>; scenarios checked by reading only` to `{VERIFICATION}` and continue.
+- **Otherwise** → delegate to a **sonnet** Agent subagent (driving an app needs judgment; haiku is not enough). Prompt must contain:
+  - Opening: `你是被主 session 委派的子代理，可以直接用 Bash 與其他工具執行，不需要再往下委派。`
+  - Job: execute the Run line from the repo root — a shell command verbatim, or for `skill:<name>` invoke that project skill (Skill tool) and follow it. Drive every `#### Scenario:` in `openspec/changes/<name>/specs/**/spec.md` that the Run line covers. Do not edit any tracked file; write evidence only under `$(git rev-parse --git-dir)/super-spec/<name>/run-evidence/round-<N>/` (inside `.git`, so it can never be committed or absorbed by the archive commit).
+  - Report exactly: `run_result: PASS | FAIL | ERROR`; a per-step trace (`- <scenario / step> — PASS|FAIL`); evidence paths (screenshots, logs, responses); for the first failed step, the last 40 lines of its log in a fenced block. `ERROR` means the app could not be started at all for an environmental reason (no emulator / device attached, port taken, missing SDK) — say which.
+
+Route on `run_result`:
+
+- **PASS** → append `` `<run line>` → PASS `` + the trace to `{VERIFICATION}`; `RUN` = `PASS (<k> scenarios)`. Continue.
+- **FAIL** → same as a failed Full: do **not** dispatch a reviewer; write `review.md` with `Verdict: CHANGES REQUESTED`, Summary `Run verification failed; review skipped until it passes.`, issue `- [Critical] run verification failed at <step>: <one line> {class: run-failure}` + the trace and log tail, suggested revision task `Make <run line> pass (trace in review.md)`. Go to section 7.
+- **ERROR** → not the change's fault; do not fail it. `RUN` = `could not run — <reason>`; append that to `{VERIFICATION}` with `scenarios checked by reading only`. Section 7 tells the user which scenarios no one exercised.
+
 ## 3. Review depth
 
 Read `## Review Depth` from `proposal.md` (absent → `auto`).
 
-- `Quick` / `Standard` / `Deep` → use it as-is (the user chose it).
-- `auto` → classify from the paths the change touches: `git diff --name-only <COMMIT_RANGE> -- . ':(exclude)openspec/'`
-  - any path matches a glob under `sensitive_paths` in `REVIEW.md` (repo root or `openspec/REVIEW.md`) → **Deep**
-  - every path is documentation or copy (`*.md`, `*.txt`, `*.rst`, `docs/**`, or a glob under `quick_paths` in `REVIEW.md`) → **Quick**
+- `Quick` / `Standard` / `Deep` → use it as-is (the user chose it), except for the `RULES_TOUCHED` override below.
+- `auto` → classify from the paths the change touches: `git diff --name-only <COMMIT_RANGE> -- . ':(exclude)openspec/'`, using the rules loaded from `RULES_BASE` in section 1 (not the working-tree `REVIEW.md` — the change could have edited it):
+  - `RULES_TOUCHED` → **Deep** (a change that edits the review rules gets the strictest review, whatever else it touches)
+  - any path matches a glob under `sensitive_paths` → **Deep**
+  - every path is documentation or copy (`*.md`, `*.txt`, `*.rst`, `docs/**`, or a glob under `quick_paths`) → **Quick**
   - otherwise → **Standard**
+- An explicit `Quick` / `Standard` in `proposal.md` is still overridden to **Deep** when `RULES_TOUCHED` — the proposal is part of the change, so it cannot lower the depth of a change that edits the rules.
 
-Announce the result with its reason, e.g. `Review depth: Deep (matched sensitive path app/src/main/cpp/**)`. Depth is a property of what the change touches, not of its size or who wrote it.
+Announce the result with its reason, e.g. `Review depth: Deep (matched sensitive path app/src/main/cpp/**)` or `Review depth: Deep (change modifies review rules)`. Depth is a property of what the change touches, not of its size or who wrote it.
 
 ## 4. Choose the reviewer path
 
@@ -55,6 +76,7 @@ Use the **Agent** tool. Read `prompts/final-reviewer.md` and substitute:
 - `{COMMIT_RANGE}`, `{REVIEW_ROUND}` (= N), `{PREVIOUS_REVIEW_PATH}`, `{FOCUS_RANGE}`: from section 1
 - `{VERIFICATION}`: from section 2
 - `{REVIEW_DEPTH}`: from section 3
+- `{RULES_BASE}`: from section 1
 
 **Model:** `sonnet` when depth is `Quick`; otherwise `opus`.
 
@@ -84,7 +106,7 @@ If depth is **Deep** and the (re-validated) verdict is not `APPROVED`, Read `flo
 
 Path: `openspec/changes/<name>/review.md`
 
-Structure: see `templates/review.md`. Fill in the header fields (`Round`, `Reviewed range` = `COMMIT_RANGE`, `Focus range`, `Reviewed HEAD` = `REVIEWED_HEAD`, `Review depth`, `Verification`), then `Verdict`, `Summary`, and the body sections from the reviewer output (or the panel / native-verify result).
+Structure: see `templates/review.md`. Fill in the header fields (`Round`, `Reviewed range` = `COMMIT_RANGE`, `Focus range`, `Reviewed HEAD` = `REVIEWED_HEAD`, `Review depth`, `Review rules` = `RULES_BASE` + `RULES_TOUCHED`, `Verification`, `Run`), then `Verdict`, `Summary`, and the body sections from the reviewer output (or the panel / native-verify result).
 
 Fill `## Review stats` from `tasks.md` (the `**Review rounds:** … · **Verification failures:** …` line under each Task, written in Phase 4):
 - Tasks: total Task headers (including revision tasks), and how many were skipped
@@ -94,6 +116,7 @@ Fill `## Review stats` from `tasks.md` (the `**Review rounds:** … · **Verific
 - Final review round: `N`
 - Panel / skeptic numbers when they ran: candidates, verified, downgraded, moved to pre-existing
 - Pre-existing items found (tasks.md + this review)
+- Checks triggered: `CHECKS_TRIGGERED` (ids, or `none`), and Observe hits: the `observe:<id>` notes the reviewers reported
 
 Tasks without the stats line (applied before this field existed) are excluded from the averages; say so in one line.
 
@@ -113,7 +136,7 @@ Write `review.md` to disk but **do NOT commit it here**. It stays uncommitted in
 
    Record the answers under `## Dispositions` in `review.md` (`- <item> → <answer>`). Plain `[Minor]` notes from the reviewer do not need a disposition.
 2. **Todo:** mark `Phase 5 · Final review` `completed`; leave `Phase 6 · Archive` `pending` (see `flows/todo-tracking.md`).
-3. Show the user the verdict, Notes, Pre-existing items and the `## Review stats` block. If depth was **Deep**, also show the `Verification` line and say plainly which scenarios the review could not exercise (from any `cannot-determine` notes) — those are what a human should look at before saying "archive".
+3. Show the user the verdict, Notes, Pre-existing items and the `## Review stats` block. Always show the `Run` line; when it is not `PASS`, say plainly that no one started the app for this change. If depth was **Deep**, also show the `Verification` line and say plainly which scenarios the review could not exercise (from any `cannot-determine` notes, and every scenario the Run did not cover) — those are what a human should look at before saying "archive".
 4. Wait for the user's explicit "archive" instruction. Do NOT auto-archive.
 
 ### CHANGES REQUESTED or NEEDS DESIGN UPDATE — round cap first

@@ -15,8 +15,9 @@ You are the **final reviewer**. You are the last line of defense before this cha
 - `{REVIEW_ROUND}`: `1` for the first final review; `2`, `3` after revision rounds
 - `{PREVIOUS_REVIEW_PATH}`: round ≥ 2 only — the previous round's review file (`review-r<N>.md`). `(none)` in round 1.
 - `{FOCUS_RANGE}`: the commits to review for *new* issues. Round 1: same as `{COMMIT_RANGE}`. Round ≥ 2: only the revision commits since the previous round's reviewed HEAD.
-- `{VERIFICATION}`: output of the change's **full** verification command, run by the orchestrator just before dispatching you (command, exit code, output tail), or a note that none is defined. A failing command never reaches you — the orchestrator turns it into `CHANGES REQUESTED` itself.
+- `{VERIFICATION}`: output of the change's **full** verification command, run by the orchestrator just before dispatching you (command, exit code, output tail), or a note that none is defined — followed by the **Run** result: a per-step PASS/FAIL trace of someone actually starting the app and driving the spec scenarios, or a note that no Run happened and why. A failing Full or Run never reaches you — the orchestrator turns it into `CHANGES REQUESTED` itself.
 - `{REVIEW_DEPTH}`: `Quick` | `Standard` | `Deep` — how much scrutiny this change warrants (decided by the orchestrator from the paths it touches; see "Depth" below)
+- `{RULES_BASE}`: the commit just before this change started. Project rules (`REVIEW.md`, `CLAUDE.md`) are read from this commit, never from the working tree — see the preamble.
 
 ## What you do NOT receive
 
@@ -26,7 +27,7 @@ You **do** read `proposal.md` here (unlike per-task reviewers) — it is your re
 
 ## Your job
 
-0. **Project rules.** If `REVIEW.md` exists (repo root, or `openspec/REVIEW.md`), Read it, and Read the root `CLAUDE.md` if present. Apply their failure definitions, project-specific checklists, skip paths and nit limits on top of this prompt. Where they conflict with the generic checks below, the project file wins. Paths under `skip_paths` are not reviewed.
+0. **Project rules.** Load `REVIEW.md` and `CLAUDE.md` from `{RULES_BASE}` as the preamble describes (`git show {RULES_BASE}:REVIEW.md`, falling back to `openspec/REVIEW.md`) — never the working-tree copies. Apply their failure definitions, the `## Always check` entries whose `when:` matches `git diff {COMMIT_RANGE}`, `## Observe` entries (non-blocking), skip paths and nit limits on top of this prompt. Where they conflict with the generic checks below, the project file wins. Paths under `skip_paths` are not reviewed. If the change edits `REVIEW.md`, `openspec/REVIEW.md` or `CLAUDE.md`, review that edit like code: a removed or weakened rule with no stated reason in `proposal.md` / `design.md` is `[Important] {class: review-rules-weakened}`.
 1. Read `{PROPOSAL_PATH}` to understand what & why.
 2. Read `{DESIGN_PATH}` to understand how it was supposed to be built.
 3. Read `{TASKS_PATH}` to see the planned breakdown.
@@ -43,9 +44,9 @@ You **do** read `proposal.md` here (unlike per-task reviewers) — it is your re
    - `Standard` / `Deep` → `/code-review high`, **and** `/security-review`.
    Invoke them via the Skill tool. If a Skill is unavailable in your context, perform that analysis yourself (correctness / reuse / efficiency; or security: injection, authn/authz, secrets, unsafe deserialization, trust-boundary validation, permission and exported-component exposure) instead of failing. Treat every finding as input to your verdict; a security finding with a concrete exploit path in this change is `[Critical]`.
 8. Form a holistic view. Specifically check:
-   - **Goal achievement**: does the change actually solve the problem stated in `proposal.md`? Walk each `#### Scenario:` in the spec deltas and verify the implementation satisfies it; an unsatisfied scenario is at least `[Important]`.
+   - **Goal achievement**: does the change actually solve the problem stated in `proposal.md`? Walk each `#### Scenario:` in the spec deltas and verify the implementation satisfies it; an unsatisfied scenario is at least `[Important]`. Use the Run trace in `{VERIFICATION}` as evidence for the scenarios it covers; for every scenario it did not cover, add one `[Minor]` note `scenario <name> checked by reading only` (these do not count toward the Minor limit), so the user knows what nobody exercised.
    - **Design fidelity**: does the implementation match `design.md` overall?
-   - **Thread / lifecycle / resource control across the whole change** — examine these BEFORE generic quality. Apply the generic principles below plus any platform checklist in `REVIEW.md`:
+   - **Thread / lifecycle / resource control across the whole change** — examine these BEFORE generic quality. Apply the generic principles below plus any platform checklist in the project rules:
      - Async work started in one Task is owned by a scope that another Task tears down correctly; execution context (thread / executor / dispatcher) matches the data each handler touches.
      - Every `allocate → use → release` chain (handle, id, registration, connection, lock, temp file) releases on every exit, including cancellation and error branches.
      - Every `start` / `register` / `acquire` / `bind` / `open` has a matching `stop` / `unregister` / `release` / `unbind` / `close`, and teardown order is correct (stop producers before cancelling consumers; release resources before nulling owners).
@@ -58,6 +59,7 @@ You **do** read `proposal.md` here (unlike per-task reviewers) — it is your re
    - **Breakage outside the change**: for public symbols the change modifies or removes, are existing callers elsewhere in the repo still correct (`git grep`)?
    - **Tool findings**: did `/code-review` or `/security-review` surface anything significant?
    - **Mode discipline**: if Mode is TDD, are tests present and meaningful? If Simple, does `{VERIFICATION}` show the existing tests still pass?
+   - **Test integrity**: anywhere in the change, a test skipped / ignored, given a `sleep` or longer timeout, wrapped in retry-until-pass, or loosened without a stated reason is `[Important] {class: flaky-workaround}`; a Task with a `Test strategy:` line and no test of that kind is `[Important] {class: missing-test-strategy}`.
    - **Accumulated advisories**: do the `**Reviewer advisories ([Minor]):**` recorded in `tasks.md` add up to a real problem when seen together?
 
 ## Depth
@@ -65,7 +67,7 @@ You **do** read `proposal.md` here (unlike per-task reviewers) — it is your re
 `{REVIEW_DEPTH}` tells you how hard to look, not what counts as a bug:
 - **Quick** — docs / copy / config-only change. Confirm scenarios, confirm nothing executable changed unexpectedly. Keep it short.
 - **Standard** — the normal review described above.
-- **Deep** — the change touches a path `REVIEW.md` marks as sensitive (or the user asked for it). Trace every changed code path end to end, including failure and cancellation paths, and read the callers of every modified public symbol. Your gating findings will additionally be checked by independent skeptics.
+- **Deep** — the change touches a path the project rules mark as sensitive, or edits the project rules themselves (or the user asked for it). Trace every changed code path end to end, including failure and cancellation paths, and read the callers of every modified public symbol. Your gating findings will additionally be checked by independent skeptics.
 
 ## Pre-existing vs. introduced
 
@@ -201,5 +203,6 @@ Use exactly the `VERDICT:` line and section headers shown — the orchestrator r
 - **PREVIOUS_REVIEW_PATH**: `{PREVIOUS_REVIEW_PATH}`
 - **FOCUS_RANGE**: `{FOCUS_RANGE}`
 - **REVIEW_DEPTH**: `{REVIEW_DEPTH}`
+- **RULES_BASE**: `{RULES_BASE}`
 - **VERIFICATION**:
 {VERIFICATION}

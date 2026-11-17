@@ -82,12 +82,13 @@ Path: `openspec/changes/<name>/design.md`
 
 Structure: see `templates/design.md`. Fill in from the design content delivered in the brainstorming skill's final message (no spec file exists — the design lives in the conversation).
 
-**`## Verification` is required.** These are the commands the orchestrator runs itself as machine gates — after every implementer commit (Per-task) and before the final review (Full) — so reviewers get evidence instead of a claim that it works. Fill it in this order:
+**`## Verification` is required.** These are the commands the orchestrator runs itself as machine gates — after every implementer commit (Per-task), and before the final review (Full, then Run) — so reviewers get evidence instead of a claim that it works. **Run** is the one that actually starts the app and drives the spec-delta scenarios; unit tests do not count as Run. Fill it in this order:
 1. Commands named in the design or the brainstorming conversation.
-2. Commands documented in the repo: `CLAUDE.md`, `REVIEW.md`, `README`, CI workflow files, `package.json` scripts, `Makefile`, Gradle tasks (`./gradlew testDebugUnitTest`, `./gradlew assembleRelease`), etc.
-3. If neither gives a usable command, ask the user once (AskUserQuestion, free text allowed): "Which command should verify each Task, and which verifies the whole change? (`none` is fine)".
+2. For Run: a project verify skill (`ls .claude/skills/verify*/SKILL.md` — nearest to the touched code wins) → write `skill:<name>`.
+3. Commands documented in the repo: `CLAUDE.md`, `REVIEW.md`, `README`, CI workflow files, `package.json` scripts, `Makefile`, Gradle tasks (`./gradlew testDebugUnitTest`, `./gradlew assembleRelease`), etc.
+4. If none of these gives a usable command, ask the user once (AskUserQuestion, free text allowed): "Which command should verify each Task, which verifies the whole change, and how do we start the app and click through it? (`none` is fine for any of them)".
 
-Per-task should be fast (seconds to a couple of minutes: targeted tests, lint, compiling the touched module); Full may be slow (full build + full test suite). `(none)` is a valid answer for either — the workflow then skips that gate and the archive commit says so.
+Per-task should be fast (seconds to a couple of minutes: targeted tests, lint, compiling the touched module); Full may be slow (full build + full test suite); Run may need an emulator or device. `(none)` is a valid answer for any of them — the workflow then skips that gate and the archive commit says so. For Run, write the reason with it (`(none): library with no runnable entry point`), so a reviewer knows the scenarios were checked by reading only.
 
 ## Write spec deltas
 

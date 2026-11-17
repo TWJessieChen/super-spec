@@ -46,5 +46,6 @@ Then rewrite the reviewer output you will put into `review.md`:
 - Drop the `## Suggested revision tasks` / `## Suggested resolutions` lines that belonged to issues that no longer block. If you cannot tell which line belongs to which issue, keep them all and add a note saying so.
 - If the verdict changed to `APPROVED`, keep the reviewer's Summary and append: `Independent verification did not confirm the blocking findings; see Notes.`
 - Record the vote counts for `## Review stats` (candidates, verified, downgraded, moved to pre-existing).
+- Write `## Skeptic ledger` (format in `templates/review.md`): one line per candidate from section 1 — including the ones that were downgraded or moved — with its original severity, file, class, `confirms` and final severity. This is the only record of what the reviewer found *before* the vote, so evals can tell whether voting removed real bugs.
 
 Do not re-dispatch the final-reviewer. Return to `phases/05-final-review.md` section 6.
