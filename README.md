@@ -94,6 +94,9 @@ super-spec/
 │   ├── REVIEW.android.md         # Android / AOSP lifecycle checklist as a REVIEW.md (diff-triggered checks)
 │   └── verify-skill.android/     # example project verify skill: adb install → launch → drive → screenshot/logcat
 │       └── SKILL.md
+├── roadmap/                      # candidate future changes (NOT approved; discuss with the owner before implementing; never read at runtime)
+│   ├── README.md                 # rules + index
+│   └── 01-…10-*.md               # one file per candidate
 ├── evals/
 │   └── README.md                 # how to re-score reviewer prompt changes against recorded escapes
 └── README.md                     # this file
@@ -223,4 +226,21 @@ See `SKILL.md` for full details.
 | Round 3+ 不再自動審查（HARD-GATE C） | Round 1 全審、round 2 diff 模式（原本就是單 reviewer 的 closure + focus）；round ≥ 3 且上一輪是 `CHANGES REQUESTED` 時，只跑 Full／Run 機器關卡，**不派 reviewer**，直接把未關閉清單交給使用者：接受並結束（逐條寫理由，記入 `## Accepted open issues`，可 archive）／再跑一輪 diff review／回頭修設計／手動介入。上一輪是 `APPROVED`（Phase 6 送回來審新 commit）時不觸發。設計修訂（`flows/recover.md`）會把 review 檔改名成 `review-superseded-d<K>-r<N>.md` 移出計數，下一輪重新從 round 1 全審——否則從 gate C 進 recover 後，回來會直接又撞上 gate C | `phases/05-final-review.md`（§4、新增 §4b、§7）、`flows/recover.md`、`flows/resume-detection.md`、`flows/todo-tracking.md`、`SKILL.md`（收斂規則 5、flow index） |
 | Revision 動到程式碼就同一個 commit 回填 design／spec | Phase 5 新增「Revision task rules」：`**Files:**` 有 `openspec/**` 以外路徑的 revision task，最後一個 sub-step 必須回填 `design.md` 與受影響的 spec，且這些文件要列進 `**Files:**`；implementer 新增 *Design-truth backfill* 節（只修事實描述；要改設計決策就回 `Blocked`）；task-reviewer 新增 design-truth sync 檢查，未同步為 `[Important] {class: design-drift}`。依據：ultra-spec 第三輪留下的 `[Important]` 有 3/4 是上一輪 revision 造成的文件與程式碼不一致 | `phases/05-final-review.md`、`flows/recover.md`、`prompts/implementer.md`、`prompts/task-reviewer.md` |
 
-沒有移植的：brainstorm／propose 的多 agent 擴散、cost-fit 模型分配、waves 平行 apply、只剩 ultracode 引擎（會失去 native 退路），以及 archive 縮成 2–4 個 commit。
+### 沒有移植的（候選改動，記在 `roadmap/`）
+
+> ⚠ **以下任何一項要實作前，都必須先與 repo 擁有者（JC）討論、確認後才動手。** `roadmap/` 只是候選清單與當時的分析，不是已核准的計畫；執行 `/super-spec` 時也不讀它。
+
+每項的 ultra-spec 做法、來源檔、移植要改的檔、取捨、當時建議，以及**討論時要決定的事**，都在 `roadmap/` 各自的檔案裡；規則見 `roadmap/README.md`。
+
+| # | 項目 | 當時建議 | 為什麼還沒做 |
+|---|---|---|---|
+| 1 | Final-review 改成 core lens + adversarial + over-engineering 三 lens | 推薦優先討論 | 會改動 panel 結構與 skeptic 票數，且要確保 Android lifecycle 檢查不被稀釋 |
+| 2 | Commit 定位改用路徑／trailer（不靠 subject `--grep`） | 推薦 | 純可攜性修正，但要決定 trailer 名稱與舊變更相容 |
+| 3 | Archive 縮成 2–4 個邏輯 commit | 看偏好 | 唯一會改寫歷史的流程，需確認你要 1 個還是多個 commit |
+| 4 | `tasks.md` lint 腳本 | 可考慮 | 多一個 Python 依賴，門檻需依專案校準 |
+| 5 | Panel 門檻刪除「Task 數 ≥ 4」 | 等資料 | 需要累積 review stats 才能判斷 |
+| 6 | Propose 階段 critic 審四份文件 | 可考慮 | 每個變更多一次 dispatch |
+| 7 | Plan-review gate + waves 平行 apply | 暫不建議 | 複雜度高，Android／AOSP 平行 build 收益存疑 |
+| 8 | Cost-fit 模型分配 + 每次啟動前確認 | 暫不建議 | 犧牲可預測性，互動變多 |
+| 9 | Brainstorm 多 agent 擴散 | 暫不建議 | 每個變更都付成本，需要 Workflow 工具 |
+| 10 | 只保留 ultracode、移除 native | 不建議 | 失去沒有 Workflow 工具時的退路 |

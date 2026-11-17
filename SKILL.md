@@ -19,6 +19,8 @@ All artifacts live in `openspec/changes/<name>/`. Defaults: TDD mode is offered,
 
 This file is an **index only** — all phase, flow, and template content lives in sibling files. You MUST Read each sibling file at the moment you enter its step, every invocation, with **no skipping, paraphrasing, or inferring contents from file names**. If a Read fails, halt and report the path; do not improvise. A correct run produces a long sequence of Read calls.
 
+`roadmap/` is **not** an execution input: never Read it during a run, and never implement anything from it without first discussing it with the repo owner (see `roadmap/README.md`).
+
 ---
 
 ## Invocation
