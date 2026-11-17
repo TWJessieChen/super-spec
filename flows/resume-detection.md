@@ -8,7 +8,7 @@ Run: `openspec status --change <name> --json`. Parse, then route by detected sta
 | `design.md` exists, no `specs/` delta files | Phase 2 (resume at "Write spec deltas"; skip HARD-GATE B if `proposal.md` already has `## Mode`) |
 | `design.md` exists, no `tasks.md` | Phase 3 |
 | `tasks.md` exists with `- [ ]` items | Phase 4 |
-| all tasks `- [x]`, no `review.md` | Phase 5 (round = 1 + number of `review-r*.md` files) |
+| all tasks `- [x]`, no `review.md` | Phase 5 (round = 1 + number of `review-r*.md` files; `review-superseded-*.md` from a design revision do not count). At round ≥ 3 after a `CHANGES REQUESTED` round this lands on HARD-GATE C again — including after a pause there |
 | `review.md` verdict = `APPROVED`, not yet archived | Phase 6 |
 | `review.md` verdict = `CHANGES REQUESTED` (the user answered `no` to revision tasks, or paused at the round cap) | Phase 5 section 7 — re-ask the round-cap / revision-tasks question for that review; do not re-review |
 | `review.md` verdict = `NEEDS DESIGN UPDATE` | Recover flow (`flows/recover.md`) |

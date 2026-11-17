@@ -62,7 +62,7 @@ Enter only when the trigger fires; Read the file and execute it.
 | Phase 4 entry with `proposal.md` `## Engine: ultracode` (after the entry sweep) | Read `flows/ultracode-apply.md`. |
 | Phase 5 section 4 selects the panel (round 1, `## Engine: ultracode`, depth Deep — or Standard above the size threshold) | Read `flows/ultracode-review.md`. |
 | Phase 5 single-reviewer path, depth Deep, verdict not APPROVED | Read `flows/native-verify.md`. |
-| Phase 5 verdict = `NEEDS DESIGN UPDATE`, or the user picks "Revisit the design" at a round cap (Phase 4 or Phase 5) | Read `flows/recover.md`. |
+| Phase 5 verdict = `NEEDS DESIGN UPDATE`, or the user picks "Revisit the design" at a round cap (Phase 4, Phase 5, or Phase 5 HARD-GATE C) | Read `flows/recover.md`. |
 | User says "abort" / "stop this change" | Read `flows/abort.md`. |
 | User reports a bug that an archived change shipped and review missed ("record an escape") | Read `flows/escape.md`. |
 
@@ -104,7 +104,7 @@ Review exists to catch real bugs without trapping an agent author in endless rou
 2. **Re-reviews are incremental.** Round ≥ 2 checks closure of the previous blocking issues and reviews only the new diff. New blocking issues must come from that diff, or be Critical.
 3. **Only blocking issues go back to the implementer.** `[Minor]` and `[Pre-existing]` are recorded, never sent back.
 4. **Fix the class.** Blocking issues carry `{class: …}`; fixes and closure checks cover every instance.
-5. **Rounds are capped.** 3 consecutive FAILs on one Task, or 3 final-review rounds, stop and ask the user — including the option to revisit the design.
+5. **Rounds are capped.** 3 consecutive FAILs on one Task stop and ask the user. Final review converges by design: round 1 full, round 2 diff mode (closure + revision commits, single reviewer), round 3+ dispatches no reviewer — HARD-GATE C hands the open list to the user (accept with reasons / one more diff round / revisit the design / intervene). A design revision resets the round counter.
 6. **Pre-existing problems never block.** They go to `openspec/backlog.md`.
 7. **Approval is bound to a commit.** Phase 6 archives only the HEAD the final review recorded.
 8. **Verification means running it.** Final review runs Full, then Run — the app is started and the spec scenarios are driven (`design.md` `## Verification`, `phases/05-final-review.md` §2b); a scenario no Run covered is reported as checked by reading only.

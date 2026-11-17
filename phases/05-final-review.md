@@ -2,7 +2,13 @@
 
 > **Todo:** mark `Phase 5 · Final review` `in_progress` (see `flows/todo-tracking.md`).
 
-Phase 5 runs in rounds. Round 1 reviews the whole change; each later round (after revision tasks) only confirms the previous issues are closed and reviews the revision commits. After round 3 the workflow stops adding revision tasks on its own and asks you.
+Phase 5 runs in rounds that converge by design:
+
+- **Round 1** reviews the whole change (panel or single reviewer).
+- **Round 2** is diff mode: one reviewer only confirms round 1's blocking issues are closed and reviews the revision commits — never the panel.
+- **Round 3+ dispatches no reviewer automatically.** After the machine gates (Full + Run) it stops at **HARD-GATE C** (section 4b) and puts the still-open list in front of you: accept and finish, one more diff round, revisit the design, or fix it yourself.
+
+A design revision (`flows/recover.md`) resets the counter, so the next review is a full round 1 again.
 
 ## 1. Round bookkeeping
 
@@ -60,10 +66,24 @@ Announce the result with its reason, e.g. `Review depth: Deep (matched sensitive
 
 | Condition | Path |
 |---|---|
+| Round **N ≥ 3** and `review-r<N-1>.md`'s `**Verdict:**` is `CHANGES REQUESTED` | **Section 4b (HARD-GATE C)** — no reviewer is dispatched unless the user asks for one there. |
 | Round 1, `## Engine: ultracode`, Workflow tool available, and depth is **Deep** — or depth is **Standard** and the size threshold in `flows/ultracode-review.md` §1 is met | Read `flows/ultracode-review.md` and execute it **instead of** section 5 (it rejoins this file at section 6). |
 | Everything else (native engine, Quick depth, round ≥ 2, below threshold, Workflow unavailable) | Section 5: single final-reviewer. |
 
 Round ≥ 2 always takes the single-reviewer path: the focus range is small and the closure check needs the previous review, which the panel does not take.
+
+When the previous review file was `APPROVED` (Phase 6's "Review the new commits" sent you back here), the gate does not apply at any round: there is no open list to adjudicate, only new commits to review — take the single-reviewer path.
+
+## 4b. HARD-GATE C — round 3+: the user adjudicates, no automatic review
+
+Why: a review round restarts from scratch and keeps rediscovering the same standing facts. Measured in ultra-spec, a third full round cost 21 agents / 560K output tokens and every finding that survived it was ruled "known, accepted" by the human — net value zero. After round 2, the only questions left are *did the issues close* and *is the rest acceptable*, and the second one only you can answer. The loop has no convergence condition of its own; the gate supplies one.
+
+1. Read `review-r<N-1>.md` and list its `[Critical]` / `[Important]` issues (each with its `{class: …}`). Run `git log --oneline <prev_head>..HEAD` (`<prev_head>` = that file's `**Reviewed HEAD:**`) so you can say which revision commits target which issue. Do **not** decide yourself whether an issue is closed — that would be an unreviewed verdict.
+2. Show the user: the open list, those commits, and the `{VERIFICATION}` / `RUN` results from section 2 (they passed, or you would not be here). Then ask (AskUserQuestion):
+   - **Accept and finish** → ask for one line of reasoning per open issue (free text; "fixed in <hash>" is a valid reason). Write `review.md` per section 6 **without dispatching a reviewer**: `Verdict: APPROVED`; Summary starts with `Approved by user at HARD-GATE C (round <N>); no automatic review this round.`; every open issue goes under `## Accepted open issues` as `- <issue> — accepted: <reason>`; `## Review stats` notes `Final review round: N (HARD-GATE C, no reviewer)`. Then go to section 7 → APPROVED (its dispositions step covers these items).
+   - **One more diff round** → continue with section 5 (single reviewer, round ≥ 2 scope). If it still comes back not `APPROVED`, section 7's round cap applies.
+   - **Revisit the design** → Read `flows/recover.md` (the open issues come from `review-r<N-1>.md`; there is no `review.md` to rename).
+   - **Intervene manually** → pause. You fix things; `/super-spec <name>` resumes here as round N again (no review file was written), and the gate asks again with the new commits listed.
 
 ## 5. Single final-reviewer dispatch
 
@@ -141,19 +161,30 @@ Write `review.md` to disk but **do NOT commit it here**. It stays uncommitted in
 
 ### CHANGES REQUESTED or NEEDS DESIGN UPDATE — round cap first
 
-If **N ≥ 3**, do not start another revision round automatically. Three review rounds without converging usually means the approach is wrong, not the code. Show the open issues and ask (AskUserQuestion):
+If **N ≥ 3**, do not start another revision round automatically. You get here only when a review still ran at round 3+ — the user picked **One more diff round** at HARD-GATE C, the machine gates failed, or the round reviewed new commits after an approval. Three review rounds without converging usually means the approach is wrong, not the code. Show the open issues and ask (AskUserQuestion):
 
 - **Revisit the design** → Read `flows/recover.md` (works for either verdict).
 - **Accept the remaining issues** → ask for one line of reasoning per open issue (free text). Rewrite `review.md`: `Verdict: APPROVED`; move every remaining `[Critical]` / `[Important]` line into `## Accepted open issues` as `- <issue> — accepted: <reason>`; prefix Summary with `Approved by user at the round-3 cap with open issues.` Then continue with the APPROVED route above (its dispositions step will cover these).
-- **Intervene manually** → pause; you fix things, then resume with `/super-spec <name>` (Phase 5 runs again as round N+1, past the cap).
+- **Intervene manually** → rename `review.md` → `review-r<N>.md`, then pause; you fix things, then resume with `/super-spec <name>` (Phase 5 runs as round N+1 and stops at HARD-GATE C with your new commits listed).
 
 Otherwise (N < 3), route by verdict:
 
 - **CHANGES REQUESTED** → Use AskUserQuestion: "Reviewer requested changes. Add revision tasks now?"
   - `yes` →
     1. Rename `review.md` → `review-r<N>.md` (the next round reads it via `{PREVIOUS_REVIEW_PATH}`).
-    2. Append `### Revision N - Task M:` blocks to `tasks.md` addressing every `[Critical]` and `[Important]` issue (omit `[Minor]` / `[Pre-existing]`; they're recorded but not gating). Each block names the issue's class and says **fix every instance of `<class>`**, and lists the affected files under `**Files:**`.
+    2. Append `### Revision N - Task M:` blocks to `tasks.md` addressing every `[Critical]` and `[Important]` issue (omit `[Minor]` / `[Pre-existing]`; they're recorded but not gating). Each block names the issue's class and says **fix every instance of `<class>`**, and lists the affected files under `**Files:**`. Follow **Revision task rules** below.
     3. Commit `tasks.md` and `review-r<N>.md` together: `openspec(<name>): revision N tasks`.
     4. Loop back to Phase 4 for the new tasks only. **Todo:** append a `Phase 4 · Revision N Task M: <title>` item (`pending`) per new Task and set `Phase 5 · Final review` back to `pending`.
   - `no` → pause; user can resume later
 - **NEEDS DESIGN UPDATE** → Jump to `flows/recover.md`
+
+### Revision task rules (a revision that changes code backfills the design truth source in the same commit)
+
+Why: measured in ultra-spec, 3 of the 4 `[Important]` findings that survived a third review round were drift between documents and code introduced by an earlier revision that changed product code without updating `design.md` / the spec deltas — a whole review round spent rediscovering the previous round's paperwork debt. A fresh reviewer cannot tell stale text from a real defect, so the drift has to be closed where it is created.
+
+1. **Backfill sub-step is required.** Any revision Task whose `**Files:**` lists a path outside `openspec/**` (product or test code) ends with a final sub-step: `Backfill design.md (and the affected specs/<capability>/spec.md) so every statement about the code matches the new implementation`.
+2. **List the documents under `**Files:** Modify`** — `design.md` and each affected spec file, one by one. The implementer works from `{RELEVANT_FILES}`; a document not listed there was never handed over (`prompts/implementer.md` → *Design-truth backfill*).
+3. **Same commit as the code.** TDD: inside the implementation commit (not the test commit). Simple: inside the single commit. No separate `docs:` commit, nothing left for the next round.
+4. Correct **descriptions of fact** only. If the fix needs a different design *decision* (scope, a key decision, a requirement the spec forbids), that is not a revision task — route to `flows/recover.md`.
+5. A docs-only revision (`**Files:**` entirely under `openspec/**`) is exempt from rule 1 — it is the backfill.
+

@@ -38,6 +38,7 @@ You are a **task reviewer**. Your job: verify that an implementer's commit (1) m
    - **Scope**: did the commit add anything *outside* this Task that wasn't asked for?
    - **Interface fidelity**: if `{TASK_BODY}` has an **Interfaces** block, do the commit's public names / types match what it declares it **Produces** (later Tasks depend on these verbatim)? A drifted or renamed produced symbol is `[Important]`.
    - **Callers**: for each public symbol the commit changes (signature, behavior, removal), search its callers in the repo (`git grep`). A caller outside this Task that the change breaks is `[Important]`.
+   - **Design-truth sync**: does any statement in `{DESIGN_PATH}` (or a spec delta under the same change directory) become *factually wrong about the code* because of this commit — a named symbol that changed shape or vanished, a described ordering / control flow / threading rule the code no longer follows, an absolute guarantee the code no longer delivers? The implementer must correct such statements **in this same commit**; editing `design.md` / spec deltas to do so is in scope, not a Scope violation. Unsynced drift is `[Important] {class: design-drift}` — do not wave it through as "docs, fix later". Two boundaries: (a) if the commit's behavior would require *changing a design decision* rather than its description, flag it `[Important]` and say it is a design decision — do not endorse a rewritten design; (b) if `{TASK_BODY}` explicitly assigns a document to another Task, that assignment wins.
 5b. Check **test integrity** (any mode):
    - The diff adds a skip / ignore (`@Ignore`, `@Disabled`, `@Suppress` on a test, `xit`, `pytest.mark.skip`, `t.Skip`), a `sleep` / fixed delay / longer timeout in a test, a retry-until-pass wrapper, or loosens an existing assertion — and the Task body does not ask for it → `[Important]` `{class: flaky-workaround}`. Flaky tests are fixed at the cause or escalated, never hidden.
    - `{TASK_BODY}` has a `Test strategy:` line but the diff has no test of that kind (no property-based test stating the listed properties, or no old-vs-new comparison) → `[Important]` `{class: missing-test-strategy}`.
@@ -91,6 +92,7 @@ Tag every issue with exactly one of four tags. The orchestrator routes on the ta
   - Error handling missing where it materially matters
   - Lifecycle-bound object retains a longer-lived reference (leak risk)
   - A caller outside this Task broken by the change
+  - `design.md` / a spec delta still states something this commit made factually wrong about the code, and the commit did not sync it (`{class: design-drift}`)
 - **[Minor]** — recorded but does NOT block PASS:
   - Naming, dead code, unused imports
   - Magic numbers without comment

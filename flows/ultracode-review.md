@@ -13,9 +13,9 @@
 Panel 成本約單 reviewer 的 3–5 倍，小 change 不划算。**Deep 深度不看門檻**——碰到敏感路徑的 change 不論大小都跑 panel；Quick 永遠不跑。Standard 時計算：
 
 - Task 數 = `tasks.md` 中 Task 標頭總數（含 revision tasks）
-- diff 行數 = `git diff --shortstat <baseline>..HEAD` 的 insertions + deletions（baseline 推導同 `phases/05-final-review.md` 的 `{COMMIT_RANGE}`）
+- diff 行數 = `git diff --shortstat <baseline>..HEAD -- . ':(exclude)openspec/'` 的 insertions + deletions（baseline 推導同 `phases/05-final-review.md` 的 `{COMMIT_RANGE}`）。**一定要排除 `openspec/`**：門檻要量的是「交付了多少程式碼」，不是「計畫寫多長」。不排除的話，光 `tasks.md`／`design.md` 就可能上千行（ultra-spec 實測：`tasks.md` 一份 1308 行，把 diff 灌到 2180 行），計畫寫得越詳細就越必定觸發 panel，跟實際程式碼多寡無關。
 
-**Task 數 ≥ 4 或 diff ≥ 800 行** → 啟用 panel（本 flow）。否則 → announce「未達 panel 門檻（Task N、diff M 行），Phase 5 走單 final-reviewer」並回到 `phases/05-final-review.md` 第 5 節。判定結果一律 announce 給使用者（含深度與其理由）。
+**Task 數 ≥ 4 或 diff ≥ 800 行（不含 `openspec/`）** → 啟用 panel（本 flow）。否則 → announce「未達 panel 門檻（Task N、diff M 行，不含 openspec/），Phase 5 走單 final-reviewer」並回到 `phases/05-final-review.md` 第 5 節。判定結果一律 announce 給使用者（含深度與其理由）。
 
 ## 2. Pre-check — Workflow 工具可用性
 

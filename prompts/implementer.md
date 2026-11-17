@@ -41,6 +41,16 @@ You are an **implementer** subagent. Your job: implement **a single Task** from 
    where `<type>` is `feat` / `fix` / `refactor` / `test` / `chore` as appropriate, `<scope>` is the most-specific module name (e.g., `parser`, `overlay`).
 5. Stop and report. In TDD mode, report the **implementation commit's** hash (the test commit is its parent).
 
+## Design-truth backfill (MANDATORY — part of step 4's commit, not a follow-up)
+
+`{DESIGN_PATH}` is the change's design truth source, and any spec file listed in `{RELEVANT_FILES}` is its acceptance criteria. If your implementation makes any statement in those documents **factually wrong about the code** — a named field or function that no longer exists or changed shape, a described control flow / ordering / threading rule that no longer matches, an absolute guarantee the code no longer delivers — correct that statement **inside the same commit as the code** (TDD: the implementation commit, not the test commit; Simple: the single commit; re-dispatch: the amend). Never leave it for the next round: document-vs-code drift is the largest single source of late review churn, and a fresh reviewer cannot tell drift from a real defect.
+
+Scope limits, so this stays a sync and not a redesign:
+
+- Correct **descriptions of fact** only. Keep the design's decisions, rationale and structure; make the text describe what the code now does.
+- If making the code correct would require **changing a design decision** (not just its description) — a different key decision, a scope change, a requirement the spec forbids — do NOT rewrite the design to match your code. Return `Blocked: <the decision that would have to change>`.
+- If `{TASK_BODY}` explicitly says a document is handled by another Task, follow the Task body.
+
 ## If your prompt contains `## Previous review failed with these issues`
 
 You are a re-dispatch: the commit named on the `Previous commit:` line (sitting at HEAD) failed review or failed its verification command. Fix every listed issue by **amending that commit** (`git commit --amend`) — do not stack a separate fix commit; each Task ends with one implementation commit. Test adjustments required by the fix go into the same amend. Report the amended hash as your `Done:` line.
