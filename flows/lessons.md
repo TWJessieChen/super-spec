@@ -1,12 +1,12 @@
 # Lessons — record, import and harvest platform lessons
 
-**Trigger:** `/super-spec lessons [record | import | harvest]`, or the user says "record this as a platform lesson", "import lessons", "harvest lessons". Also entered from `flows/enforcement-ladder.md` step 5 (record), and from `flows/pre-flight.md` §7 (import). With no sub-command, ask which of the three.
+**Trigger:** `/super-spec lessons [record | import | harvest | push]`, or the user says "record this as a platform lesson", "import lessons", "harvest lessons", "push / upload lessons". Also entered from `flows/enforcement-ladder.md` step 5 (record), and from `flows/pre-flight.md` §7 (import). With no sub-command, ask which of the four.
 
 **Why:** a mistake one Android (or Unity, or AOSP…) project paid for should not be paid for again by the next one. Project rules (`REVIEW.md`, lint, tests) stay with their project; the platform part of the lesson is copied into this skill's `lessons/` folder, which travels with super-spec to every machine and every new project. Format and rules: `lessons/README.md` — Read it before any of the sections below.
 
 `<skill>` below means this skill's own directory (where this file lives). `<project>` is the current repo.
 
-## 1. Detect platforms (all three sub-commands)
+## 1. Detect platforms (record, import, harvest)
 
 For each `<skill>/lessons/*.md`, read its frontmatter `detect` globs and match them against `git ls-files` of `<project>`. `_common` always matches. Show the result in one line: `Platforms: android, _common`. The user may add or remove one; use their list.
 
@@ -29,9 +29,9 @@ For each candidate:
 
 After all candidates:
 
-- If `<skill>` is a git working tree (`git -C <skill> rev-parse --is-inside-work-tree`), commit only the lesson files there: `git -C <skill> add lessons/ && git -C <skill> commit -m "lessons(<platforms>): <classes>"`. Then ask once: **Push to origin now** / **Later**. Never push without that answer.
-- If it is not a git tree (an installed copy), say where the file was written and that it must be copied back to the super-spec repo to reach other machines.
-- If the skill directory cannot be written at all (a read-only or synced copy), print the confirmed entries in a fenced block with their target file, so they can be added to the super-spec repo by hand; still write the lock line in `<project>`.
+- If `<skill>` is a git working tree (`git -C <skill> rev-parse --is-inside-work-tree`), commit only the lesson files there: `git -C <skill> add lessons/ && git -C <skill> commit -m "lessons(<platforms>): <classes>"`. Then ask once: **Upload now** (→ run §5) / **Later** (→ say: `run /super-spec lessons push when you want to upload`). Never push without that answer, and never with a plain `git push` — §5 is the only upload path, because it merges with what other machines uploaded.
+- If it is not a git tree (an installed copy), say where the file was written and that `/super-spec lessons push` can upload it (§5 works without a local clone).
+- If the skill directory cannot be written at all (a read-only or synced copy), print the confirmed entries in a fenced block with their target file, so they can be added to the super-spec repo by hand (or saved to a file and uploaded with §5 from another machine); still write the lock line in `<project>`.
 - In `<project>`, append to `openspec/lessons.lock` (create it with the header from §3): `exported L-<…> (<class>) <YYYY-MM-DD>` — so harvest does not offer the same class again.
 
 ## 3. Import
@@ -67,8 +67,39 @@ Batch version of record, for a project that has used super-spec for a while.
 2. Drop `verification-failure`, `unclassified`, `run-failure`, classes already `exported` in the lock, and classes that already exist in the platform files with this project counted.
 3. Show the rest with counts and where they came from; ask (multiSelect) which to record. Run §2 steps 1–5 for each selected class (one privacy confirmation per entry), then §2's commit / lock steps once.
 
+## 5. Push — upload local lessons to the super-spec repo
+
+Uploads the lessons on this machine to the GitHub repo super-spec was installed from, merged with what other machines already uploaded. It only ever changes `lessons/` in the repo. Works whether `<skill>` is a git clone or a plain copy.
+
+1. **Find the repo.** `git -C <skill> remote get-url origin` if `<skill>` is a git tree; otherwise read `<skill>/lessons/.upstream` (one line: the repo URL); otherwise ask the user for the URL (free text) and, if `<skill>` is writable, save it to `<skill>/lessons/.upstream`. Default branch: `git ls-remote --symref <url> HEAD` (the `ref: refs/heads/<branch>` line).
+2. **Fresh copy of the remote.** `TMP=$(mktemp -d)` and `git clone --depth 1 --branch <branch> <url> "$TMP/super-spec"`. All merging and the commit happen there — never in `<skill>` — so unrelated local commits or edits in `<skill>` are never pushed. Clone fails (auth, network) → report stderr and stop.
+3. **Compare entries per platform file.** For each `<skill>/lessons/*.md` (skip `README.md` and `.upstream`), split local and remote files into entries at `### L-` headings and match them:
+   | Local entry | Remote | Action |
+   |---|---|---|
+   | id not in remote, class not in remote | — | **new**: append |
+   | id not in remote, same class already in remote under another id | written on another machine | **merge** into the remote entry: add the project count if it is a different project (ask if unsure), keep the stronger `enforce`, `proved_red: yes` wins, `status` per README rules, `updated:` = later date; drop the local id |
+   | same id, same class, content differs | — | **update**: field by field, the side with the later `updated:` wins; evidence counts are combined as in merge |
+   | same id, different class | id collision | **renumber** the local entry to the next free id in the remote file |
+   | same id, identical | — | nothing |
+   Remote entries that are not local are kept untouched (they came from other machines). A local platform file that does not exist remotely is copied over, and its row is added to the table in `lessons/README.md` if missing.
+4. **Privacy re-check.** Scan every new / merged / updated entry for things the README forbids: application ids that are not generic examples (`[a-z]+\.[a-z0-9_]+\.[a-z0-9_.]+` outside code that names an SDK API), hostnames and URLs other than public docs, e-mail addresses, absolute paths (`/Users/`, `/home/`, `C:\`), and anything that looks like a key or token. List each hit with the entry id.
+5. **Show the plan and confirm.** One table: id · platform · action (new / merge into L-… / update / renumber L-… → L-…) · class, plus the privacy hits. Ask (AskUserQuestion): **Upload** / **Fix first** (stop; the user edits the entries, then runs push again) / **Cancel**. Privacy hits default the recommendation to **Fix first**. Nothing is pushed without **Upload**.
+6. **Commit and push from the fresh copy.** Write the merged files, then in `$TMP/super-spec`: `git add lessons/`, commit `lessons(<platforms>): <n> new, <m> merged/updated` (add the session's commit attribution lines if it has any), `git push origin HEAD:<branch>`. If the push is rejected because the remote moved, fetch again and redo steps 3–6 once; a second rejection → stop and report. Push refused for permissions → report it as is.
+7. **Renumbered ids.** For each `renumber L-a → L-b`: rewrite `exported L-a` → `exported L-b` in `<project>/openspec/lessons.lock` if this run started inside a project (commit that one-line change with the haiku subagent rules from §3 step 6: `chore(lessons): renumber exported lesson ids`). Say plainly that other projects which exported or imported `L-a` from this machine still carry the old id.
+8. **Bring `<skill>` up to date.** If `<skill>` is a git tree: `git -C <skill> fetch origin <branch>`. If every local commit ahead of `origin/<branch>` touches only `lessons/` (`git -C <skill> log origin/<branch>..HEAD --name-only`) and `git -C <skill> status --porcelain` is empty, ask once: **Update local copy to match GitHub** (`git -C <skill> reset --keep origin/<branch>` — the local lesson commits are now upstream in merged form) / **Leave it**. Any other local commits → do not touch them; say the local clone has unrelated commits and needs a manual `git pull --rebase`. If `<skill>` is not a git tree, copy the merged `lessons/*.md` back into `<skill>/lessons/` when it is writable.
+9. **Clean up** `rm -rf "$TMP"`.
+
+Report:
+```
+lessons push: <url> <branch> → <commit hash>
+new: <ids> · merged: <local → remote ids> · updated: <ids> · renumbered: <a → b>
+privacy hits fixed before upload: <k | none>
+local copy: updated | left as is (<reason>)
+```
+
 ## Rules
 
 - This flow never changes product code.
-- Writing to `<skill>/lessons/` happens only in record / harvest, only after the user confirms each entry's text.
+- Writing to `<skill>/lessons/` happens only in record / harvest (and push step 8), only after the user confirms each entry's text.
+- Uploading happens only through §5, only after the user picks **Upload**; it never pushes anything outside `lessons/`.
 - `lessons/` is never read during the six phases — only here and in pre-flight §7. Once a lesson is imported, the project's own `REVIEW.md` / backlog / verify skill carry it; the run does not consult `lessons/` again.

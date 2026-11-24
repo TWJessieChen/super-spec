@@ -31,7 +31,7 @@ User runs `/super-spec [--ultra] [<name | short description>]`.
 
 0. **Sub-commands** (they run outside any change, so steps 1–3 below do not apply; `lessons` and `maintain-verify` are therefore not usable as change names):
    - `/super-spec maintain-verify` → Read `flows/maintain-verify.md` and execute it.
-   - `/super-spec lessons [record | import | harvest]` → Read `flows/lessons.md` and execute it.
+   - `/super-spec lessons [record | import | harvest | push]` → Read `flows/lessons.md` and execute it.
 1. **Read `flows/pre-flight.md` and execute it.** Halt on any failure.
 2. Then determine the **entry phase** based on argument:
    - **No argument** → ask: "What change do you want to work on? Describe what to build or fix." (entry phase = Phase 1 once they answer)
@@ -72,7 +72,7 @@ Enter only when the trigger fires; Read the file and execute it.
 | User reports a bug that an archived change shipped and review missed ("record an escape") | Read `flows/escape.md`. |
 | Phase 6 §4b or the escape flow decides where a recurring class gets fixed | Read `flows/enforcement-ladder.md` (called from those two files). |
 | User says "maintain verify" / "audit the verify skill", or `/super-spec maintain-verify` | Read `flows/maintain-verify.md` (runs outside any change; skip the entry-phase steps). |
-| User says "lessons …" / "record this as a platform lesson" / "import lessons", or `/super-spec lessons <record\|import\|harvest>` | Read `flows/lessons.md` (runs outside any change; skip the entry-phase steps). |
+| User says "lessons …" / "record this as a platform lesson" / "import lessons", or `/super-spec lessons <record\|import\|harvest\|push>` | Read `flows/lessons.md` (runs outside any change; skip the entry-phase steps). |
 
 ## Template index
 

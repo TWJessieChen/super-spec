@@ -12,7 +12,7 @@ All artifacts live in `openspec/changes/<name>/`. Defaults: TDD mode is offered,
 
 ```
 /super-spec [--ultra] [<name | short description>]
-/super-spec lessons [record | import | harvest]
+/super-spec lessons [record | import | harvest | push]
 /super-spec maintain-verify
 ```
 
@@ -20,7 +20,7 @@ All artifacts live in `openspec/changes/<name>/`. Defaults: TDD mode is offered,
 - New `<name>` → starts at brainstorm
 - Existing `<name>` → resumes from current state
 - `--ultra` → pre-answers the Phase-2 engine gate with `ultracode` (see "Execution engines" below)
-- `lessons …` → record / import / harvest platform lessons (`flows/lessons.md`, see "Platform lessons" below)
+- `lessons …` → record / import / harvest / push platform lessons (`flows/lessons.md`, see "Platform lessons" below)
 - `maintain-verify` → refresh the project verify skill's feature map (`flows/maintain-verify.md`)
 
 ## Dependencies
@@ -72,7 +72,7 @@ super-spec/
 │   ├── escape.md                 # record a bug that got past review as an eval case
 │   ├── enforcement-ladder.md     # where a recurring class gets fixed: structure → type → lint → test → REVIEW.md
 │   ├── maintain-verify.md        # periodic pass that keeps the verify skill / feature map honest
-│   ├── lessons.md                # record / import / harvest platform lessons (lessons/)
+│   ├── lessons.md                # record / import / harvest / push platform lessons (lessons/)
 │   └── abort.md
 ├── workflows/
 │   ├── apply.js                  # static Workflow script for the ultracode Phase-4 Task loop
@@ -253,9 +253,10 @@ P2（roadmap #06 propose critic、#09 brainstorm 擴散）沒有實作，只在�
 
 | 指令 | 做什麼 |
 |---|---|
-| `/super-spec lessons record` | 把一個類別寫成平台 lesson：先判斷是不是平台層級、和既有條目去重（重複就累加專案數）、移除專案名稱與內部路徑、**逐條給你確認後才寫入**，寫進 skill 目錄並 commit，push 前再問一次。Phase 6 §4b 與 escape flow 走完 enforcement ladder 後會主動詢問 |
+| `/super-spec lessons record` | 把一個類別寫成平台 lesson：先判斷是不是平台層級、和既有條目去重（重複就累加專案數）、移除專案名稱與內部路徑、**逐條給你確認後才寫入**，寫進 skill 目錄並 commit，上傳一律走 `lessons push`。Phase 6 §4b 與 escape flow 走完 enforcement ladder 後會主動詢問 |
 | `/super-spec lessons import` | 偵測專案平台（`git ls-files` 對 `detect` globs），列出還沒匯入的 lesson。選中的依 enforce 等級安裝成 `[Enforce]` backlog 項目、`REVIEW.md` 檢查（預設 Observe，`active` 的可選 Always）、`sensitive_paths`、verify skill 的 Doctor／health 步驟，並寫入 `openspec/lessons.lock` |
 | `/super-spec lessons harvest` | 已經用了一陣子的專案，一次掃出 escape 案例、review 的 `{class: …}`、`## Enforced elsewhere` 等候選，批次走 record |
+| `/super-spec lessons push` | 把本機的 lesson 上傳到 super-spec 的 GitHub repo。一律在暫存目錄 clone 最新的遠端，再把本機條目合併進去：新的就加上、別台機器已經記過同一類的就合併、編號撞號的自動改成下一個空號，最後掃一次隱私（application id、主機名稱、絕對路徑、金鑰）。列出計畫、你選 **Upload** 才 push，而且只動 `lessons/`。本機不是 git clone 也能用（第一次會問 repo 網址），上傳後可以選擇把本機 clone 同步成遠端版本 |
 
 新專案第一次跑 `/super-spec` 時，pre-flight §7 會在有新 lesson 時問一次要不要匯入（可選「這個專案不要」，之後只提示新增或更新的條目）。條目格式、狀態（observe／active／retired）與隱私規則見 `lessons/README.md`。目前各平台檔都是空的，第一批會從你之後的專案 harvest 進來。
 
