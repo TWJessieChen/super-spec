@@ -50,3 +50,17 @@ Lessons leave the project they came from. They never contain: project or custome
 ## Ids are permanent
 
 An id is never reused or renumbered. Projects record imported ids in `openspec/lessons.lock`, so re-import only shows new or updated lessons.
+
+## Recorded lessons (quick index)
+
+One line per entry so the folder can be skimmed without opening each platform file. Keep it in sync when `flows/lessons.md` adds or updates an entry.
+
+### windows-python.md — Windows desktop apps in Python (Tk, OpenCV, native tools)
+
+| Id | Class | One-line summary | Status |
+|---|---|---|---|
+| L-WINPY-001 | cv2-imread-nonascii-path | `cv2.imread` / `imwrite` fail silently on non-ASCII (e.g. CJK) paths on Windows; use `np.fromfile` + `imdecode` / `imencode` + `tofile`. | observe |
+| L-WINPY-002 | git-bash-rewrites-device-paths | Git Bash rewrites absolute POSIX paths in `adb shell` / `adb push` arguments; set `MSYS_NO_PATHCONV=1`. | observe |
+| L-WINPY-003 | tk-event-generate-on-withdrawn-root | Tk `event_generate` does nothing on a withdrawn root; call the handler directly in unit tests. | observe |
+
+`_common.md`, `android.md`, `aosp.md`, `unity.md`: no lessons recorded yet.
