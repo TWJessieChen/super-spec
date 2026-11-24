@@ -39,7 +39,7 @@ Only after Full passed (or is undefined). Take the **Run** line from `design.md`
 - **No line, or `(none)…`** → `RUN` = `none: <reason from design.md, or "not defined">`. Append `Run: none — <reason>; scenarios checked by reading only` to `{VERIFICATION}` and continue.
 - **Otherwise** → delegate to a **sonnet** Agent subagent (driving an app needs judgment; haiku is not enough). Prompt must contain:
   - Opening: `你是被主 session 委派的子代理，可以直接用 Bash 與其他工具執行，不需要再往下委派。`
-  - Job: execute the Run line from the repo root — a shell command verbatim, or for `skill:<name>` invoke that project skill (Skill tool) and follow it. Drive every `#### Scenario:` in `openspec/changes/<name>/specs/**/spec.md` that the Run line covers. Do not edit any tracked file; write evidence only under `$(git rev-parse --git-dir)/super-spec/<name>/run-evidence/round-<N>/` (inside `.git`, so it can never be committed or absorbed by the archive commit).
+  - Job: execute the Run line from the repo root — a shell command verbatim, or for `skill:<name>` invoke that project skill (Skill tool) and follow it. If the skill has a `Doctor` section, run it before the first scenario and again after any failed step; a Doctor failure before the first scenario is `ERROR` (environment), not `FAIL`. Follow the skill's evidence rules: real user path only, and check each scenario's side effects, not just the screen. Drive every `#### Scenario:` in `openspec/changes/<name>/specs/**/spec.md` that the Run line covers. Do not edit any tracked file; write evidence only under `$(git rev-parse --git-dir)/super-spec/<name>/run-evidence/round-<N>/` (inside `.git`, so it can never be committed or absorbed by the archive commit).
   - Report exactly: `run_result: PASS | FAIL | ERROR`; a per-step trace (`- <scenario / step> — PASS|FAIL`); evidence paths (screenshots, logs, responses); for the first failed step, the last 40 lines of its log in a fenced block. `ERROR` means the app could not be started at all for an environmental reason (no emulator / device attached, port taken, missing SDK) — say which.
 
 Route on `run_result`:
@@ -47,6 +47,13 @@ Route on `run_result`:
 - **PASS** → append `` `<run line>` → PASS `` + the trace to `{VERIFICATION}`; `RUN` = `PASS (<k> scenarios)`. Continue.
 - **FAIL** → same as a failed Full: do **not** dispatch a reviewer; write `review.md` with `Verdict: CHANGES REQUESTED`, Summary `Run verification failed; review skipped until it passes.`, issue `- [Critical] run verification failed at <step>: <one line> {class: run-failure}` + the trace and log tail, suggested revision task `Make <run line> pass (trace in review.md)`. Go to section 7.
 - **ERROR** → not the change's fault; do not fail it. `RUN` = `could not run — <reason>`; append that to `{VERIFICATION}` with `scenarios checked by reading only`. Section 7 tells the user which scenarios no one exercised.
+
+### 2c. Proof gates (only for the optional lines that exist)
+
+Run after 2b, before any reviewer, each delegated to a **haiku** Agent subagent with the same prompt shape as section 2 (opening line, no tracked-file edits, report `exit_code` and the last 40 lines). Skip a gate whose line is absent.
+
+- **Red proof** (`design.md` `Red proof: <commit> · <command>`) — the subagent runs `git worktree add --detach "$(git rev-parse --git-dir)/super-spec/<name>/red-proof" <commit>`, copies in from HEAD only the new check and what enables it (the lint rule / test / type file plus the build or lint config lines that register it — the paths this change added or edited for the check, listed in `design.md` `## File Structure`), runs `<command>` there, then `git worktree remove --force` that path. **The pass is a non-zero exit whose output shows the new check itself reporting the mistake** — its rule id, test name or type error at the file from `prove_red_on`. A non-zero exit for an unrelated reason (the old code does not build, a different test fails) is not a red proof: treat it as `could not run`: append `` Red proof: `<command>` @ <commit> → failed as expected `` + tail to `{VERIFICATION}`. **Exit 0** → do not dispatch a reviewer; write `review.md` with `Verdict: CHANGES REQUESTED`, issue `- [Critical] new check does not fail on the mistake it was written for (<commit>) {class: check-never-fails}` + tail, suggested revision task `Make the check fail on <commit>`. Go to section 7. With `fixture:<path>` instead of a commit, skip the worktree: run `<command>` at HEAD against the fixture; the same pass rule applies (a failure that reports the check at the fixture file). Could not set up the worktree → `Red proof: could not run — <reason>` in `{VERIFICATION}`; the final reviewer treats the check as unproven (`[Important] {class: check-unproven}` unless the change explains why).
+- **Formal** (`Formal: <command>`) — run from the repo root. Exit 0 → append `` Formal: `<command>` → holds `` to `{VERIFICATION}`. Non-zero → same as a failed Full: `[Critical] formal property violated: <one line from the counterexample> {class: formal-property-violated}` + tail; no reviewer; go to section 7.
 
 ## 3. Review depth
 
@@ -135,6 +142,7 @@ Fill `## Review stats` from `tasks.md` (the `**Review rounds:** … · **Verific
 - Total verification failures in Phase 4
 - Final review round: `N`
 - Panel / skeptic numbers when they ran: candidates, verified, downgraded, moved to pre-existing
+- Blocking issues by evidence level, when skeptics ran (from the ledger's confirm levels) — recorded so evals can later show whether low-evidence findings are the ones that turn out to be false positives
 - Pre-existing items found (tasks.md + this review)
 - Checks triggered: `CHECKS_TRIGGERED` (ids, or `none`), and Observe hits: the `observe:<id>` notes the reviewers reported
 
@@ -156,7 +164,7 @@ Write `review.md` to disk but **do NOT commit it here**. It stays uncommitted in
 
    Record the answers under `## Dispositions` in `review.md` (`- <item> → <answer>`). Plain `[Minor]` notes from the reviewer do not need a disposition.
 2. **Todo:** mark `Phase 5 · Final review` `completed`; leave `Phase 6 · Archive` `pending` (see `flows/todo-tracking.md`).
-3. Show the user the verdict, Notes, Pre-existing items and the `## Review stats` block. Always show the `Run` line; when it is not `PASS`, say plainly that no one started the app for this change. If depth was **Deep**, also show the `Verification` line and say plainly which scenarios the review could not exercise (from any `cannot-determine` notes, and every scenario the Run did not cover) — those are what a human should look at before saying "archive".
+3. Show the user the verdict, Notes, Pre-existing items and the `## Review stats` block. If the Run reported any `NOT COVERED` scenario, or a step failed because the feature map was wrong, add one line: `The verify skill's feature map looks out of date — say "maintain verify" to refresh it (flows/maintain-verify.md).` Always show the `Run` line; when it is not `PASS`, say plainly that no one started the app for this change. If depth was **Deep**, also show the `Verification` line and say plainly which scenarios the review could not exercise (from any `cannot-determine` notes, and every scenario the Run did not cover) — those are what a human should look at before saying "archive".
 4. Wait for the user's explicit "archive" instruction. Do NOT auto-archive.
 
 ### CHANGES REQUESTED or NEEDS DESIGN UPDATE — round cap first

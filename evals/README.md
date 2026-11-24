@@ -14,6 +14,10 @@ Cases are recorded **in each project that uses super-spec**, not in this repo, b
 
 You can also add **clean cases**: a range from an archived change that has been in use for a while with no reported bug. Write the same file with `expected_severity: none` and no `file` / `lines`. Clean cases measure noise: a reviewer that blocks a clean range is producing false positives.
 
+## Red proof is the same idea for checks
+
+An escape case is also the test set for the *checks* it led to. When `flows/enforcement-ladder.md` turns a class into a lint, test or type, the backlog item's `prove_red_on` points at a case file (or a real past occurrence), and the change that builds the check must show it failing there (`design.md` `Red proof:`, run by Phase 5 §2c). A reviewer prompt is kept only if it still catches the recorded escapes; a check is kept only if it fails on them.
+
 ## When to run
 
 Before merging any change to this repo that touches:

@@ -4,7 +4,7 @@
 
 **Purpose:** every escape becomes a regression case for the reviewers. When the reviewer prompts, lenses, or model table change, they are re-scored against these cases (see `evals/README.md` in this skill). A prompt change that stops catching a recorded escape is rolled back.
 
-This flow writes one file and makes one commit. It never changes code.
+This flow writes the case file (plus any `REVIEW.md` / backlog lines step 4 adds) and makes one commit. It never changes code.
 
 ## 1. Pin down the escape
 
@@ -42,7 +42,7 @@ Write `openspec/review-evals/<YYYY-MM-DD>-<name>-<class>.md`:
 - fix_commit: <hash | none>
 - review_depth_used: <Quick | Standard | Deep>
 - seen_by_review: <never | downgraded | accepted | disposed:<answer>>
-- missing_layer: <one line: what should have caught it — a REVIEW.md rule, a sensitive path, a test, a verification command>
+- missing_layer: <one line: the strongest layer that should have caught it — structure, type, lint, test, Run / verify skill, sensitive path, or a REVIEW.md rule>
 
 ## What goes wrong
 <1-2 sentences, confirmed by the user>
@@ -50,15 +50,18 @@ Write `openspec/review-evals/<YYYY-MM-DD>-<name>-<class>.md`:
 
 ## 4. Close the loop at the source
 
-Based on `missing_layer`, offer (AskUserQuestion, multiSelect) the fixes that apply:
-- add a check to `REVIEW.md` (lands under `## Observe` first — see below)
-- add the path to `REVIEW.md` → `sensitive_paths`
-- add a test or extend `## Verification` (including the Run line / verify skill's feature map) — note it as a backlog item in `openspec/backlog.md`
+**Read `flows/enforcement-ladder.md` and execute it** for this case's class, with the escape case file as the evidence and as `prove_red_on`. An escape is the strongest evidence a class can have — a real bug, at a known commit and line — so the ladder should reach level 1–4 whenever the class is mechanically detectable; a text rule alone is the fallback, not the default.
 
-**A new check must survive a skeptic before it is written.** Draft it in the trigger format — `- [<next free id>] when: <globs / keywords that would have matched this escape's diff> → check: <what to look for> (source: escape <case file name>)` — then dispatch one **sonnet** Agent subagent with `prompts/rule-skeptic.md`: `{RULE_LINE}` = the draft line, `{RULE_EVIDENCE}` = the case file path, the change's archive commit and the bug's file:lines. Act on the JSON it returns:
+Independently of the ladder, offer (AskUserQuestion, multiSelect) the fixes `missing_layer` points at that the ladder does not cover:
+- add the path to `REVIEW.md` → `sensitive_paths`
+- extend `## Verification` (the Run line, or the verify skill's feature map / Doctor) — note it as a backlog item in `openspec/backlog.md`
+
+**A level-5 check must survive a skeptic before it is written.** Draft it in the trigger format — `- [<next free id>] when: <globs / keywords that would have matched this escape's diff> → check: <what to look for> (source: escape <case file name>) · enforced_by: reviewer` — then dispatch one **sonnet** Agent subagent with `prompts/rule-skeptic.md`: `{RULE_LINE}` = the draft line, `{RULE_EVIDENCE}` = the case file path, the change's archive commit and the bug's file:lines. Act on the JSON it returns:
 - `refuted: false` → write the line under `## Observe` in `REVIEW.md` (create the section from `templates/REVIEW-rules.md` if missing). It reports non-blocking `observe:` hits until you promote it to `## Always check`.
 - `refuted: true` → do not write it. Show the reasoning, and the `better_trigger` if one was given; offer once to retry with that trigger (one more skeptic). Otherwise record `missing_layer` as is — the case still counts in evals.
 
+Add one line to the case file: `- enforcement: <level> <enforced_by value> | none — <reason>`.
+
 ## 5. Commit
 
-Delegate to a haiku Agent subagent (standard opening line; `git add` only the files written; no hook bypass; report stderr on failure): `docs(review-evals): record escape from <name>`.
+Delegate to a haiku Agent subagent (standard opening line; `git add` only the files written — the case file, and `REVIEW.md` / `openspec/backlog.md` if step 4 changed them; no hook bypass; report stderr on failure): `docs(review-evals): record escape from <name>`.

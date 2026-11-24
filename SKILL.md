@@ -19,7 +19,7 @@ All artifacts live in `openspec/changes/<name>/`. Defaults: TDD mode is offered,
 
 This file is an **index only** — all phase, flow, and template content lives in sibling files. You MUST Read each sibling file at the moment you enter its step, every invocation, with **no skipping, paraphrasing, or inferring contents from file names**. If a Read fails, halt and report the path; do not improvise. A correct run produces a long sequence of Read calls.
 
-`roadmap/` is **not** an execution input: never Read it during a run, and never implement anything from it without first discussing it with the repo owner (see `roadmap/README.md`).
+`roadmap/` is **not** an execution input: never Read it during a run, and never implement anything from it without first discussing it with the repo owner (see `roadmap/README.md`). `lessons/` is data read only by `flows/lessons.md` and pre-flight §7, never during the six phases.
 
 ---
 
@@ -29,6 +29,9 @@ User runs `/super-spec [--ultra] [<name | short description>]`.
 
 - **`--ultra` flag** (optional, position-independent): pre-answers Phase 2's HARD-GATE B2 with the `ultracode` engine — the gate still shows the agent-model table for confirmation; it is never silently skipped. Strip the flag before interpreting the remaining argument as `<name | description>`.
 
+0. **Sub-commands** (they run outside any change, so steps 1–3 below do not apply; `lessons` and `maintain-verify` are therefore not usable as change names):
+   - `/super-spec maintain-verify` → Read `flows/maintain-verify.md` and execute it.
+   - `/super-spec lessons [record | import | harvest]` → Read `flows/lessons.md` and execute it.
 1. **Read `flows/pre-flight.md` and execute it.** Halt on any failure.
 2. Then determine the **entry phase** based on argument:
    - **No argument** → ask: "What change do you want to work on? Describe what to build or fix." (entry phase = Phase 1 once they answer)
@@ -67,6 +70,9 @@ Enter only when the trigger fires; Read the file and execute it.
 | Phase 5 verdict = `NEEDS DESIGN UPDATE`, or the user picks "Revisit the design" at a round cap (Phase 4, Phase 5, or Phase 5 HARD-GATE C) | Read `flows/recover.md`. |
 | User says "abort" / "stop this change" | Read `flows/abort.md`. |
 | User reports a bug that an archived change shipped and review missed ("record an escape") | Read `flows/escape.md`. |
+| Phase 6 §4b or the escape flow decides where a recurring class gets fixed | Read `flows/enforcement-ladder.md` (called from those two files). |
+| User says "maintain verify" / "audit the verify skill", or `/super-spec maintain-verify` | Read `flows/maintain-verify.md` (runs outside any change; skip the entry-phase steps). |
+| User says "lessons …" / "record this as a platform lesson" / "import lessons", or `/super-spec lessons <record\|import\|harvest>` | Read `flows/lessons.md` (runs outside any change; skip the entry-phase steps). |
 
 ## Template index
 
@@ -111,7 +117,8 @@ Review exists to catch real bugs without trapping an agent author in endless rou
 7. **Approval is bound to a commit.** Phase 6 archives only the HEAD the final review recorded.
 8. **Verification means running it.** Final review runs Full, then Run — the app is started and the spec scenarios are driven (`design.md` `## Verification`, `phases/05-final-review.md` §2b); a scenario no Run covered is reported as checked by reading only.
 9. **Tests are not weakened to pass.** Skipping, sleeping, retrying or loosening a flaky test is a blocking finding (`{class: flaky-workaround}`); a flaky test is fixed at the cause or deleted with a written reason by the user.
-10. **New rules observe before they block.** Checks proposed by Phase 6 or the escape flow must survive `prompts/rule-skeptic.md`, then start under `REVIEW.md` `## Observe` (non-blocking `observe:` notes) until the user promotes them.
+10. **New rules observe before they block.** Checks proposed by Phase 6 or the escape flow must survive `prompts/rule-skeptic.md`, then start under `REVIEW.md` `## Observe` (non-blocking `observe:` notes) until the user promotes them. Checks imported from `lessons/` skip the skeptic (no local evidence yet) but still start under Observe unless the user picks Always for an `active` lesson.
+11. **Fix a recurring class at the strongest layer that works.** Structure, then type, then a lint whose error names the fix, then a test; a `REVIEW.md` text check only for what needs judgment (`flows/enforcement-ladder.md`). A class that recurs despite an existing review check must move up a level. A new check is trusted only after it has failed on a real past mistake (`Red proof:`, Phase 5 §2c).
 
 ## Dependencies
 

@@ -12,12 +12,16 @@ All artifacts live in `openspec/changes/<name>/`. Defaults: TDD mode is offered,
 
 ```
 /super-spec [--ultra] [<name | short description>]
+/super-spec lessons [record | import | harvest]
+/super-spec maintain-verify
 ```
 
 - No argument → asks what you want to build
 - New `<name>` → starts at brainstorm
 - Existing `<name>` → resumes from current state
 - `--ultra` → pre-answers the Phase-2 engine gate with `ultracode` (see "Execution engines" below)
+- `lessons …` → record / import / harvest platform lessons (`flows/lessons.md`, see "Platform lessons" below)
+- `maintain-verify` → refresh the project verify skill's feature map (`flows/maintain-verify.md`)
 
 ## Dependencies
 
@@ -66,6 +70,9 @@ super-spec/
 │   ├── ultracode-review.md       # Phase 5 multi-lens panel (orchestrator side)
 │   ├── native-verify.md          # Phase 5 skeptic voting without the Workflow engine (Deep depth)
 │   ├── escape.md                 # record a bug that got past review as an eval case
+│   ├── enforcement-ladder.md     # where a recurring class gets fixed: structure → type → lint → test → REVIEW.md
+│   ├── maintain-verify.md        # periodic pass that keeps the verify skill / feature map honest
+│   ├── lessons.md                # record / import / harvest platform lessons (lessons/)
 │   └── abort.md
 ├── workflows/
 │   ├── apply.js                  # static Workflow script for the ultracode Phase-4 Task loop
@@ -94,6 +101,10 @@ super-spec/
 │   ├── REVIEW.android.md         # Android / AOSP lifecycle checklist as a REVIEW.md (diff-triggered checks)
 │   └── verify-skill.android/     # example project verify skill: adb install → launch → drive → screenshot/logcat
 │       └── SKILL.md
+├── lessons/                      # platform lessons that travel with super-spec (data; read only by flows/lessons.md + pre-flight §7)
+│   ├── README.md                 # what a lesson is, entry format, privacy rule
+│   ├── _common.md                # any project
+│   └── android.md · aosp.md · unity.md
 ├── roadmap/                      # candidate future changes (NOT approved; discuss with the owner before implementing; never read at runtime)
 │   ├── README.md                 # rules + index
 │   └── 01-…10-*.md               # one file per candidate
@@ -145,6 +156,8 @@ Ways to enable ultracode: the `--ultra` flag, answering the gate, or asking for 
 - **Depth follows risk, not size**: `REVIEW.md` `sensitive_paths` make a change Deep (independent skeptic verification of every blocking finding), docs-only changes are Quick; a change that edits the review rules is always Deep
 - **A change cannot modify its own checks**: reviewers read `REVIEW.md` / `CLAUDE.md` from `RULES_BASE` (the commit before the planning commit) via `git show`, never from the working tree
 - **Verification means running it**: besides build and tests, final review starts the app and drives the spec scenarios (the Run gate), and records what nobody exercised
+- **Fix a class at the strongest layer**: a recurring mistake is made impossible (structure, type, lint whose error names the fix, test) before it becomes a `REVIEW.md` text check; a new check counts only after it fails on a real past mistake (`Red proof:`)
+- **Lessons travel**: platform-level lessons are recorded in `lessons/` and offered to every new project on the same platform
 - **Checks trigger on the diff**: `REVIEW.md` checks carry a `when:` trigger, so only the 3–10 that match a change are applied; new checks must survive a skeptic and start in `## Observe` (non-blocking) before they can block
 - **Approval is bound to a commit**: `review.md` records the reviewed HEAD; archive refuses silently-changed history
 - **Measured**: every `review.md` carries `## Review stats` and finding dispositions; escaped bugs become eval cases (`flows/escape.md`, `evals/README.md`)
@@ -215,6 +228,36 @@ See `SKILL.md` for full details.
 - **加更多 reviewer**：文章指出調好主 reviewer 通常比堆 reviewer 有效；super-spec 只在 Deep 或大型變更才啟用多視角審查，維持不變。
 - **用 Stop hook 或 `/goal` 強制跑測試**：orchestrator 本來就在派 reviewer 前自己跑驗證指令，不需要另外加 hook。
 
+
+## Trust upgrade (2026-11, from pstack)
+
+參考 Lauren Tan（@poteto）的 pstack（cursor/plugins，2026-11-21 版）與她的「信任金字塔」：codebase → 靜態分析 → 驗證 → 文字規則 → 人工審查，越前面越便宜也越可靠。super-spec 原本把力氣集中在文字規則與 LLM reviewer，這次補上「把重複錯誤往上推成機器檢查」與「驗證入口要能持續維護」兩條路，並新增跨平台的經驗紀錄。
+
+| 優先 | 項目 | 改了什麼 | 檔案 |
+|---|---|---|---|
+| P0-1 | 糾正往最強那層放 | 新增 `flows/enforcement-ladder.md`，Phase 6 §4b 與 escape flow 都改走它：依序判斷架構、型別、錯誤訊息寫明改法的 lint、測試，四層都不行才寫 `REVIEW.md`。1–4 層變成 `openspec/backlog.md` 的 `[Enforce]` 項目（必附 `prove_red_on`），並視需要加一條 interim 的 Observe 檢查。`REVIEW.md` 規則加上 `· enforced_by:`，新增 `## Enforced elsewhere` 規則表（reviewer 不再套用）。已有文字規則卻又再犯的類別，下一次必須升級 | `flows/enforcement-ladder.md`、`phases/06-archive.md`、`flows/escape.md`、`templates/REVIEW-rules.md`、`examples/REVIEW.android.md`、`prompts/_isolation-preamble.md`、`SKILL.md`（收斂規則 11） |
+| P0-2 | 新檢查要在真實舊錯誤上跑出紅燈 | `design.md` `## Verification` 新增選填的 `Red proof: <commit> · <command>`（或 `fixture:<path>`）。Phase 5 新增 §2c，在 scratch worktree 的舊 commit 上執行新檢查，必須以該檢查本身的報錯失敗。跑出 exit 0 是 `[Critical] {class: check-never-fails}`，跑不起來則由 final reviewer 標 `[Important] {class: check-unproven}` | `templates/design.md`、`phases/02-propose.md`、`phases/05-final-review.md`、`prompts/final-reviewer.md`、`evals/README.md` |
+| P1-1 | verify skill 範本補強 | 加上 Doctor（唯讀健康檢查，開跑前與任何意外後都要跑）、ready marker（畫面可操作才算啟動）、只走真實使用者路徑、檢查副作用、Isolation（不共用裝置）、Teardown。Run gate 會先跑 Doctor，Doctor 失敗算 `ERROR` 不算 `FAIL` | `examples/verify-skill.android/SKILL.md`、`phases/05-final-review.md` §2b |
+| P1-2 | 功能地圖定期維護 | 新增 `/super-spec maintain-verify`：每個功能一個唯讀 subagent 讀原始碼找漂移，再實際操作每個功能，結果只有 clean／changed／blocked，只改 verify skill 本身。Phase 5 遇到 `NOT COVERED` 會提示 | `flows/maintain-verify.md`、`SKILL.md`、`phases/05-final-review.md` §7 |
+| P1-3 | blocking finding 的證據等級（只記錄） | skeptic 回報 `evidence_level` 1–4（口說、指出行號、推演失敗路徑、實際執行），寫進 `## Skeptic ledger` 與 `## Review stats`。**投票規則不變**，先累積資料，等有 escape 案例再判斷低證據的 finding 是否多為誤報 | `prompts/final-skeptic.md`、`workflows/final-review.js`、`flows/native-verify.md`、`flows/ultracode-review.md`、`templates/review.md` |
+| P3 | 形式驗證掛勾 | `design.md` 新增選填 `Formal:`。專案有 `.claude/skills/formal-*` 且涵蓋到本次修改的檔案時，Phase 5 §2c 會執行，失敗即 `[Critical] {class: formal-property-violated}` | `templates/design.md`、`phases/02-propose.md`、`phases/05-final-review.md` |
+| 新增 | 跨平台經驗紀錄 | 見下一節 | `lessons/`、`flows/lessons.md`、`flows/pre-flight.md` §7 |
+
+P2（roadmap #06 propose critic、#09 brainstorm 擴散）沒有實作，只在兩份 roadmap 檔補上 pstack 的對照分析，決議欄維持「尚未討論」。
+
+**Evals 注意：** 這次動到 `prompts/final-reviewer.md`（新增 Check integrity）、`prompts/final-skeptic.md`（新增證據等級）與 `prompts/_isolation-preamble.md`（`## Enforced elsewhere`）。依 `evals/README.md`，這類修改應該先用專案裡的 escape 案例重新評分。目前還沒有任何專案累積案例，所以這次沒有跑。修改刻意不改投票規則與 severity 判定，第一個專案累積到案例後，請補跑一次並記錄結果。
+
+### Platform lessons（跨平台經驗紀錄）
+
+目標是同一類平台問題只付一次代價。專案自己的規則（`REVIEW.md`、lint、測試）留在專案裡，屬於平台本身的部分（任何 Android／Unity／AOSP 專案都可能踩到的）記到 super-spec 的 `lessons/`，跟著 super-spec 一起下載到每台機器、每個新專案。
+
+| 指令 | 做什麼 |
+|---|---|
+| `/super-spec lessons record` | 把一個類別寫成平台 lesson：先判斷是不是平台層級、和既有條目去重（重複就累加專案數）、移除專案名稱與內部路徑、**逐條給你確認後才寫入**，寫進 skill 目錄並 commit，push 前再問一次。Phase 6 §4b 與 escape flow 走完 enforcement ladder 後會主動詢問 |
+| `/super-spec lessons import` | 偵測專案平台（`git ls-files` 對 `detect` globs），列出還沒匯入的 lesson。選中的依 enforce 等級安裝成 `[Enforce]` backlog 項目、`REVIEW.md` 檢查（預設 Observe，`active` 的可選 Always）、`sensitive_paths`、verify skill 的 Doctor／health 步驟，並寫入 `openspec/lessons.lock` |
+| `/super-spec lessons harvest` | 已經用了一陣子的專案，一次掃出 escape 案例、review 的 `{class: …}`、`## Enforced elsewhere` 等候選，批次走 record |
+
+新專案第一次跑 `/super-spec` 時，pre-flight §7 會在有新 lesson 時問一次要不要匯入（可選「這個專案不要」，之後只提示新增或更新的條目）。條目格式、狀態（observe／active／retired）與隱私規則見 `lessons/README.md`。目前各平台檔都是空的，第一批會從你之後的專案 harvest 進來。
 
 ## Review convergence upgrade (2026-11, from ultra-spec)
 

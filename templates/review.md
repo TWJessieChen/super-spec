@@ -47,7 +47,8 @@
 
 ## Skeptic ledger
 <only when skeptics voted (Deep native-verify, or the ultracode panel). One line per blocking candidate BEFORE the vote, including ones voted down. Omit otherwise.>
-- [<original severity>] <file> — <description> {class: <kebab-case>} · lens: <lens or reviewer> · confirms: <0|1|2|unverified> → <final severity>
+- [<original severity>] <file> — <description> {class: <kebab-case>} · lens: <lens or reviewer> · confirms: <0|1|2|unverified> · evidence: confirm L<1-4|–> / refute L<1-4|–> → <final severity>
+<evidence = the highest `evidence_level` the skeptics reported on each side (1 claim · 2 line pointed at · 3 failure walked through · 4 ran something). Recorded only — the vote rules do not use it.>
 
 ## Review stats
 - Tasks: <n> (<k> skipped)
@@ -56,6 +57,7 @@
 - Verification failures in Phase 4: <k>
 - Final review round: <N>
 - Skeptic verification: <candidates / verified / downgraded / moved to pre-existing, or "not run">
+- Blocking issues by evidence: <L4: k · L3: k · L2: k · L1: k — counting each final [Critical]/[Important] at its confirm level; or "not run">
 - Pre-existing items found: <k>
 - Checks triggered: <ids from REVIEW.md @ RULES_BASE whose `when:` matched, e.g. A3, A8 | none>
 - Observe hits: <observe:<id> notes reported by reviewers | none>

@@ -84,7 +84,7 @@ const LENS_SCHEMA = {
 const SKEPTIC_SCHEMA = {
   type: 'object',
   required: ['refuted', 'reasoning'],
-  properties: { refuted: { type: 'boolean' }, pre_existing: { type: 'boolean' }, reasoning: { type: 'string' } },
+  properties: { refuted: { type: 'boolean' }, pre_existing: { type: 'boolean' }, evidence_level: { type: 'integer', minimum: 1, maximum: 4 }, reasoning: { type: 'string' } },
 }
 const JUDGE_SCHEMA = {
   type: 'object',
@@ -190,6 +190,10 @@ const verified = await parallel(toVerify.map((issue, idx) => () =>
     const valid = votes.filter(Boolean)
     const confirms = valid.filter(x => !x.refuted).length
     const preVotes = valid.filter(x => x.refuted && x.pre_existing).length
+    // 證據等級只記錄不計票：取 skeptic 回報的最高等級（confirm 與 refute 分開），寫進 ## Skeptic ledger 供 evals 對照
+    const lvl = xs => xs.map(x => x.evidence_level).filter(n => Number.isInteger(n))
+    const confirmEvidence = lvl(valid.filter(x => !x.refuted))
+    const refuteEvidence = lvl(valid.filter(x => x.refuted))
     // 2 票 confirm → 維持；1 票 → 降一級；0 票 → 降為 Minor；
     // 0 票且有 skeptic 判定「早於本 change」→ 改歸 Pre-existing（進 backlog，不進 Notes）
     const finalSeverity = confirms >= 2 ? issue.severity
@@ -200,6 +204,10 @@ const verified = await parallel(toVerify.map((issue, idx) => () =>
       originalSeverity: issue.severity,
       severity: finalSeverity,
       confirms,
+      evidence: {
+        confirm: confirmEvidence.length ? Math.max(...confirmEvidence) : null,
+        refute: refuteEvidence.length ? Math.max(...refuteEvidence) : null,
+      },
       downgraded: finalSeverity !== issue.severity,
     })
   })
@@ -264,6 +272,7 @@ return {
       class: i.class || 'unclassified',
       lens: i.lens,
       confirms: s.confirms === undefined ? null : s.confirms,
+      evidence: s.evidence || null,
       finalSeverity: s.severity || i.severity,
     }
   }),

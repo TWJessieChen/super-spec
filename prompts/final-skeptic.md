@@ -24,13 +24,19 @@ You are a **skeptic**. A panel reviewer raised the issue below against this chan
    - The claimed failure cannot actually manifest (a guard/release/synchronization the reviewer missed already covers it).
    - It is out of this change's scope (pre-existing behavior untouched by `{COMMIT_RANGE}`). In this case also set `pre_existing: true` — the problem may be real, it just is not this change's; it goes to the project backlog instead of Notes.
 3. The issue **stands** (refuted = false) only if you can point at concrete code in the diff where the claimed failure is real.
-4. **Default to `refuted: true` when uncertain** — you only read the diff, you do not run builds; an issue that cannot be pinned to concrete code from the diff alone should not block the change at full severity. (Downgraded issues are still recorded for human follow-up; your vote is not a deletion.)
+4. **Rate the evidence** you reached for the claimed failure, as `evidence_level` (this is recorded only; it does not change how your vote counts):
+   - `1` — the claim, with nothing in the code you could point at
+   - `2` — you found the exact line(s) in the diff where it would happen
+   - `3` — you walked the failure step by step through the code (caller → state → the line that breaks) and it reaches
+   - `4` — you ran something that shows it: an existing test, or a read-only one-off command / script outside tracked files (write scratch files only under `$(git rev-parse --git-dir)/super-spec/`)
+   When you refute, give the level your refutation reached instead (e.g. `2` if you pointed at the guard that prevents it, `4` if you ran something that shows it does not happen).
+5. **Default to `refuted: true` when uncertain** — you only read the diff, you do not run builds; an issue that cannot be pinned to concrete code from the diff alone should not block the change at full severity. (Downgraded issues are still recorded for human follow-up; your vote is not a deletion.)
 
 ## Output
 
-Report **only** via the structured output schema: `{refuted: boolean, pre_existing: boolean, reasoning: string}`. `pre_existing` is `true` only when you refute because the problem predates this change (otherwise `false`). `reasoning` is 1–3 sentences citing the specific code (file:line) your conclusion rests on.
+Report **only** via the structured output schema: `{refuted: boolean, pre_existing: boolean, evidence_level: 1|2|3|4, reasoning: string}`. `pre_existing` is `true` only when you refute because the problem predates this change (otherwise `false`). `reasoning` is 1–3 sentences citing the specific code (file:line) your conclusion rests on.
 
-If no output schema is attached (native dispatch), your final response is exactly one line of JSON with the same three keys, e.g. `{"refuted": true, "pre_existing": false, "reasoning": "Foo.kt:88 already releases the id in finally."}` — no other text.
+If no output schema is attached (native dispatch), your final response is exactly one line of JSON with the same four keys, e.g. `{"refuted": true, "pre_existing": false, "evidence_level": 2, "reasoning": "Foo.kt:88 already releases the id in finally."}` — no other text.
 
 ---
 

@@ -28,6 +28,15 @@
      once the hits have been real problems. -->
 - 
 
+## Enforced elsewhere
+<!-- Classes enforced by code instead of review (see super-spec flows/enforcement-ladder.md). Reviewers skip these.
+     Candidates worth moving out of "Always check" once your build runs the rule and you have seen it fail on a
+     real past occurrence (check the rule names against the lint / detekt versions you use):
+       - A2 GlobalScope → detekt `GlobalCoroutineUsage` (coroutines rule set)
+       - A9 exported components → Android Lint `ExportedService` / `ExportedReceiver` / `ExportedContentProvider` as errors
+     Format: - <class> → lint:<rule id> | test:<path> | type:<symbol> | structure:<where> (since <change name>) -->
+- 
+
 ## Sensitive paths
 sensitive_paths:
 - `**/src/main/AndroidManifest.xml`

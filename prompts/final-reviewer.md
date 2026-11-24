@@ -59,7 +59,8 @@ You **do** read `proposal.md` here (unlike per-task reviewers) — it is your re
    - **Breakage outside the change**: for public symbols the change modifies or removes, are existing callers elsewhere in the repo still correct (`git grep`)?
    - **Tool findings**: did `/code-review` or `/security-review` surface anything significant?
    - **Mode discipline**: if Mode is TDD, are tests present and meaningful? If Simple, does `{VERIFICATION}` show the existing tests still pass?
-   - **Test integrity**: anywhere in the change, a test skipped / ignored, given a `sleep` or longer timeout, wrapped in retry-until-pass, or loosened without a stated reason is `[Important] {class: flaky-workaround}`; a Task with a `Test strategy:` line and no test of that kind is `[Important] {class: missing-test-strategy}`.
+   - **Check integrity**: if `{VERIFICATION}` has a `Red proof:` line marked `could not run`, the new lint / test / type this change adds has never been seen to fail on the mistake it targets — `[Important] {class: check-unproven}`, unless `design.md` explains why no broken commit exists. A new check whose error message does not say what to use instead is `[Minor]`.
+  - **Test integrity**: anywhere in the change, a test skipped / ignored, given a `sleep` or longer timeout, wrapped in retry-until-pass, or loosened without a stated reason is `[Important] {class: flaky-workaround}`; a Task with a `Test strategy:` line and no test of that kind is `[Important] {class: missing-test-strategy}`.
    - **Accumulated advisories**: do the `**Reviewer advisories ([Minor]):**` recorded in `tasks.md` add up to a real problem when seen together?
 
 ## Depth

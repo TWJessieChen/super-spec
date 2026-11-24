@@ -166,13 +166,19 @@ Repeated review findings are cheapest to fix at the source. Collect the classes:
 
 Drop `verification-failure` and `unclassified`. A class qualifies when it appears **≥ 2 times in this change** or **≥ 3 times across history**.
 
-If none qualify, skip. Otherwise list them with counts and ask (AskUserQuestion, multiSelect): "These kinds of mistakes keep coming up. Add a check for them to REVIEW.md?" For each selected class:
+If none qualify, skip. Otherwise list them with counts and ask (AskUserQuestion, multiSelect): "These kinds of mistakes keep coming up. Fix them at the source?"
 
-1. Draft one line in the trigger format: `- [<next free id>] when: <globs / keywords matching where this class occurred> → check: <what to look for> (source: class <name>, changes <names>)`. Derive `when:` from the files the class was reported in.
-2. Dispatch one **sonnet** Agent subagent with `prompts/rule-skeptic.md` (`{RULE_LINE}` = the draft, `{RULE_EVIDENCE}` = the class name, the changes and the `file:line` of each occurrence). Dispatch all selected classes in one message, in parallel.
+For the selected classes, **Read `flows/enforcement-ladder.md` and execute it.** It picks the strongest level that works for each class (structure → type → lint whose error names the fix → test → `REVIEW.md` rule last), turns levels 1–4 into `[Enforce]` backlog items with a `prove_red_on` pointer, and only writes `REVIEW.md` checks for what needs judgment (or as an interim watch while a stronger check is pending). For a level-5 check it uses the procedure below:
+
+1. Draft one line in the trigger format: `- [<next free id>] when: <globs / keywords matching where this class occurred> → check: <what to look for> (source: class <name>, changes <names>) · enforced_by: reviewer`. Derive `when:` from the files the class was reported in.
+2. Dispatch one **sonnet** Agent subagent with `prompts/rule-skeptic.md` (`{RULE_LINE}` = the draft, `{RULE_EVIDENCE}` = the class name, the changes and the `file:line` of each occurrence). Dispatch all level-5 classes in one message, in parallel.
 3. `refuted: false` → add the line under **`## Observe`** (not `## Always check`): a new rule only reports non-blocking `observe:` hits until the user promotes it. `refuted: true` → do not add it; show the reasoning (and `better_trigger`) in one line.
 
-Create `REVIEW.md` from `templates/REVIEW-rules.md` if missing. Also list, in one line each, any `## Observe` entry that has `observe:` hits recorded in at least 2 archived `review*.md` (`git grep -h "observe:" -- 'openspec/changes/archive/*/review*.md'`) and ask whether to promote it to `## Always check`. Commit the REVIEW.md edits separately by delegating to a haiku Agent subagent (same opening line and failure rules as step 4; `git add` only the REVIEW.md path): `docs(review): add recurring checks from <name>`. This commit lands after the archive commit on purpose — it is a project-rule change, not part of the feature. If a class is better caught by a linter rule or a CLAUDE.md instruction, say so in one line instead of adding it.
+Create `REVIEW.md` from `templates/REVIEW-rules.md` if missing. Also list, in one line each, any `## Observe` entry that has `observe:` hits recorded in at least 2 archived `review*.md` (`git grep -h "observe:" -- 'openspec/changes/archive/*/review*.md'`) and ask whether to promote it to `## Always check`.
+
+**Close finished `[Enforce]` items.** If this change implemented an `[Enforce]` backlog item (its `design.md` has a `Red proof:` line and `review.md` shows it ran red), apply that item's `then:` line now — delete the review check, or move it to `## Enforced elsewhere` — and mark the backlog item `done (<name>)`.
+
+Commit the `REVIEW.md` and `openspec/backlog.md` edits separately by delegating to a haiku Agent subagent (same opening line and failure rules as step 4; `git add` only those two paths): `docs(review): enforce recurring classes from <name>`. This commit lands after the archive commit on purpose — it is a project-rule change, not part of the feature.
 
 ## 5. STOP
 

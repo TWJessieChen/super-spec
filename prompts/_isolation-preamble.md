@@ -28,6 +28,7 @@ How to apply the rules you loaded:
 
 - **What failure looks like / Noise / Skip** — apply as written; paths under `skip_paths` are not reviewed.
 - **Always check** — entries may start with an id and a trigger: `- [C3] when: <globs or diff keywords> → check: <what to look for> (source: <case or PR>)`. Before reviewing, list the files and added/removed lines in your diff and keep only the entries whose `when:` matches (a glob matches a changed path; a keyword appears in an added or removed line). Apply only those. Entries without `when:` always apply. Do not report a check that did not trigger.
+- **Enforced elsewhere** — entries under `## Enforced elsewhere` are already enforced by a compiler, linter, test or the code structure. Do not apply or report them; if the build or test that enforces one is failing, that shows up in `{VERIFICATION}`, not in your review. A trailing `· enforced_by: …` on an `Always check` / `Observe` entry is bookkeeping — apply the entry as usual.
 - **Observe** — entries under `## Observe` are trial rules. Apply them the same way, but a hit is never blocking: report it as `[Minor] observe:<id> <file:line — what it would have flagged>`. These `observe:` lines do not count toward the `[Minor]` noise limit. Never put an observe hit in a blocking severity.
 
 Specific roles withhold additional items — see your role's `## What you do NOT receive` section.

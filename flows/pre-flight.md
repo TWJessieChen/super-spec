@@ -69,6 +69,16 @@ Only when this invocation starts a **new** change, check `ls .claude/skills/veri
 
 After creating, delegate a haiku Agent subagent to commit just that folder: `chore(verify): add verify skill` (lands before the planning commit, so it is not part of the change). Never halt on this check.
 
+## 7. Platform lessons (soft; new changes only)
+
+Only when this invocation starts a **new** change: run `flows/lessons.md` §1 (detect platforms) and §3 step 2 (find candidates) silently — read the matching `lessons/*.md` in this skill's directory and `openspec/lessons.lock`. If there are no candidates, say nothing. Otherwise ask once (AskUserQuestion):
+> "super-spec has <k> lessons from other <platforms> projects that this repo has not imported (<a> active, <o> observe). Review them now?"
+- **Review now** → Read `flows/lessons.md` and continue from §3 step 3 (its commit lands before the planning commit).
+- **Not now** → continue; ask again next time.
+- **Not for this project** → write every candidate to `openspec/lessons.lock` as `declined …` (commit it with the same haiku subagent rules, `chore(lessons): decline platform lessons`), so only new or updated lessons are offered later.
+
+Never halt on this check.
+
 ## Branch policy
 
 Do **NOT** check the current branch. Do **NOT** create a new branch. All commits go on the current branch.

@@ -21,7 +21,7 @@ For each candidate, dispatch **two** Agent subagents (`model: sonnet`). Prompt =
 - `{DESIGN_PATH}`: `openspec/changes/<name>/design.md`
 - `{COMMIT_RANGE}`: the Phase 5 `COMMIT_RANGE`
 
-Each skeptic answers with one JSON line `{"refuted": bool, "pre_existing": bool, "reasoning": "…"}`. An answer that does not parse counts as no vote.
+Each skeptic answers with one JSON line `{"refuted": bool, "pre_existing": bool, "evidence_level": 1-4, "reasoning": "…"}`. An answer that does not parse counts as no vote; a missing or invalid `evidence_level` alone does not invalidate the vote (record it as `–`).
 
 ## 3. Settle each candidate
 
@@ -46,6 +46,6 @@ Then rewrite the reviewer output you will put into `review.md`:
 - Drop the `## Suggested revision tasks` / `## Suggested resolutions` lines that belonged to issues that no longer block. If you cannot tell which line belongs to which issue, keep them all and add a note saying so.
 - If the verdict changed to `APPROVED`, keep the reviewer's Summary and append: `Independent verification did not confirm the blocking findings; see Notes.`
 - Record the vote counts for `## Review stats` (candidates, verified, downgraded, moved to pre-existing).
-- Write `## Skeptic ledger` (format in `templates/review.md`): one line per candidate from section 1 — including the ones that were downgraded or moved — with its original severity, file, class, `confirms` and final severity. This is the only record of what the reviewer found *before* the vote, so evals can tell whether voting removed real bugs.
+- Write `## Skeptic ledger` (format in `templates/review.md`): one line per candidate from section 1 — including the ones that were downgraded or moved — with its original severity, file, class, `confirms`, the evidence levels (highest confirming and highest refuting `evidence_level`) and final severity. This is the only record of what the reviewer found *before* the vote, so evals can tell whether voting removed real bugs.
 
 Do not re-dispatch the final-reviewer. Return to `phases/05-final-review.md` section 6.
