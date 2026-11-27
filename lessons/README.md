@@ -12,6 +12,7 @@ Flow: `flows/lessons.md` (record · import · harvest). This folder is data; the
 | `android.md` | Android apps (Kotlin / Java, Gradle) | `AndroidManifest.xml`, `build.gradle`, `build.gradle.kts` |
 | `aosp.md` | AOSP / BSP / framework | `Android.bp`, `Android.mk`, `build/envsetup.sh` |
 | `unity.md` | Unity | `ProjectSettings/ProjectVersion.txt` |
+| `windows-python.md` | Windows desktop apps in Python (Tk, OpenCV, native tools) | `**/*.py` |
 
 Add a platform: create `<platform>.md` with the same frontmatter (`platform`, `detect`) and add a row above. Detection runs `git ls-files` and matches the `detect` globs.
 
@@ -62,5 +63,17 @@ One line per entry so the folder can be skimmed without opening each platform fi
 | L-WINPY-001 | cv2-imread-nonascii-path | `cv2.imread` / `imwrite` fail silently on non-ASCII (e.g. CJK) paths on Windows; use `np.fromfile` + `imdecode` / `imencode` + `tofile`. | observe |
 | L-WINPY-002 | git-bash-rewrites-device-paths | Git Bash rewrites absolute POSIX paths in `adb shell` / `adb push` arguments; set `MSYS_NO_PATHCONV=1`. | observe |
 | L-WINPY-003 | tk-event-generate-on-withdrawn-root | Tk `event_generate` does nothing on a withdrawn root; call the handler directly in unit tests. | observe |
+| L-WINPY-004 | stale-import-path-after-install | After an in-process pip install, a newly created user site-packages is not on sys.path; add it before re-checking imports. | observe |
+| L-WINPY-005 | cmd-c-quote-stripping | `cmd /c` strips the outer quotes of the line; use `/s /c "<line>"` so a .bat path with spaces still runs. | observe |
+| L-WINPY-006 | powershell-single-element-array-unrolled | PowerShell unrolls a one-element array returned from a function; wrap with `@(...)` and test the one-item case. | observe |
+| L-WINPY-007 | tk-dialog-parent-destroyed | A Tk dialog parented to a secondary window dies when a refresh closes that window; parent dialogs to the main window. | observe |
 
-`_common.md`, `android.md`, `aosp.md`, `unity.md`: no lessons recorded yet.
+### _common.md — any project
+
+| Id | Class | One-line summary | Status |
+|---|---|---|---|
+| L-COMMON-001 | partial-copy-no-rollback | Replacing several files as one set must restore already-replaced files on error and never drop an unrestored backup. | observe |
+| L-COMMON-002 | untracked-required-asset | Resource files the code or build needs are excluded by .gitignore; a fresh clone cannot run or build. | observe |
+| L-COMMON-003 | atomic-write-temp-names | Fixed `.tmp` names collide; random ones leak after a crash — use unique names and clean by exact pattern and age. | observe |
+
+`android.md`, `aosp.md`, `unity.md`: no lessons recorded yet.

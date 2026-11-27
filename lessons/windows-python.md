@@ -43,3 +43,51 @@ detect: [**/*.py]
 - sensitive_paths: none
 - verify: none
 - evidence: 1 project(s) · first seen 2026-11 · build issue · proved_red: no
+
+### L-WINPY-004 · stale-import-path-after-install
+- status: observe
+- updated: 2026-11-28
+- when: **/*.py with `pip install`, `subprocess` + `-m pip`, `find_spec`, `importlib.invalidate_caches`
+- symptom: An app that installs its missing packages with pip at start-up reports the install as failed (imports still fail) although pip succeeded; a restart works.
+- root_cause: For a per-machine Python and a non-admin user, pip installs into the user site-packages; when that folder did not exist at interpreter start, `site` never put it on sys.path, and invalidate_caches() does not add it.
+- enforce: test — after a successful in-process install, add `site.getusersitepackages()` to sys.path (site.addsitedir) before re-checking; unit-test the re-check with a freshly created user site dir.
+- review_check: after installing packages in-process, the user site-packages created during the run is added to sys.path before imports are re-checked.
+- sensitive_paths: none
+- verify: run the first-start install once as a non-admin user with no user site-packages folder.
+- evidence: 1 project(s) · first seen 2026-11 · recurring class ×3 · proved_red: no
+
+### L-WINPY-005 · cmd-c-quote-stripping
+- status: observe
+- updated: 2026-11-28
+- when: **/*.py with `subprocess` and `"cmd"`, `/c`, `.bat`, `.cmd`
+- symptom: Running a .bat through `cmd /c` fails with "is not recognized as an internal or external command" whenever the script path contains a space (e.g. an install folder with a space).
+- root_cause: Without /s, cmd /c removes the first and last quote of the whole command line when the line starts with a quote, so a quoted script path followed by quoted arguments loses its quoting.
+- enforce: test — build the line with subprocess.list2cmdline and run `cmd /s /c "<line>"`; test by really running a stub .bat placed in a folder whose name contains a space.
+- review_check: .bat/.cmd files launched through cmd /c survive a script path and arguments containing spaces (use /s plus one extra pair of quotes around the whole line).
+- sensitive_paths: none
+- verify: run the feature once from an install folder whose path contains a space.
+- evidence: 1 project(s) · first seen 2026-11 · recurring class ×2 · proved_red: no
+
+### L-WINPY-006 · powershell-single-element-array-unrolled
+- status: observe
+- updated: 2026-11-28
+- when: **/*.ps1, **/*.bat with embedded PowerShell, keywords `ConvertFrom-Json`, `-is [array]`, `-is [System.Array]`, `return`
+- symptom: A list read from JSON works with 0 or 2+ items but is treated as "not a list" (or loses items) when it has exactly one item.
+- root_cause: PowerShell unrolls arrays written to the pipeline; a function returning a one-element array returns the single element, so `-is [array]` and `.Count` checks fail.
+- enforce: test — wrap results in @(...) at the call site (or return with the unary comma `, $list`); test every list-reading path with exactly one element.
+- review_check: PowerShell code that returns or receives a list wraps it with @(...) or returns it with `,`, and the one-element case is tested.
+- sensitive_paths: none
+- verify: none
+- evidence: 1 project(s) · first seen 2026-11 · escape (pre-existing bug found in review) · proved_red: no
+
+### L-WINPY-007 · tk-dialog-parent-destroyed
+- status: observe
+- updated: 2026-11-28
+- when: **/*.py with `messagebox.`, `Toplevel`, `parent=`, `after(` refresh loops
+- symptom: An error or confirmation dialog in a Tk app disappears by itself, or is never seen, when it was opened from a secondary window.
+- root_cause: Tk destroys a dialog together with its parent; a periodic refresh (after() loop) that closes the secondary window while the modal dialog's nested event loop is running takes the dialog with it.
+- enforce: structure — open every dialog through one helper that parents it to the main window (or another window no refresh closes); direct messagebox/Toplevel calls elsewhere are not allowed.
+- review_check: dialogs are parented to a window that no timer or refresh can destroy while the dialog is open.
+- sensitive_paths: none
+- verify: none
+- evidence: 1 project(s) · first seen 2026-11 · recurring class ×3 · proved_red: no
